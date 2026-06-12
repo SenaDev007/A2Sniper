@@ -1,0 +1,37 @@
+; Configuration par défaut pour Shalom EA
+; Stratégie de Scalping Heikin-Ashi Multi-Marchés
+; Copyright 2024, YEHI OR Tech Solutions
+
+; === INDICATEURS ===
+EMA_Period=21
+Use_VWAP=true
+Volume_Period=10
+ATR_Period=14
+
+; === DETECTION PATTERNS ===
+Min_Pullback_Candles=2
+Doji_Body_Ratio=0.30
+Volume_Multiplier=1.20
+
+; === RISK MANAGEMENT ===
+Risk_Percent=1.00
+SL_Method=1
+SL_Pips=10.00
+ATR_Multiplier=2.00
+RR_Ratio=2.00
+Use_Trailing=true
+
+; === FILTRES ===
+Trading_Hours=08:00-18:00
+Monday_Trading=true
+Friday_Trading=false
+Max_Spread=3.00
+
+; === LIMITES ===
+Max_Positions=3
+Max_Daily_Loss=5.00
+Max_Drawdown=10.00
+
+; === NOTIFICATIONS ===
+Send_Alerts=true
+Debug_Mode=false

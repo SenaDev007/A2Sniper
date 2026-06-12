@@ -1,0 +1,74 @@
+LICENCE PROPRIÉTAIRE - SHALOM EA
+===============================
+
+Copyright (c) 2024 YEHI OR Tech Solutions
+Tous droits réservés.
+
+ACCORD DE LICENCE UTILISATEUR FINAL (CLUF)
+==========================================
+
+Ce logiciel et la documentation qui l'accompagne (le "Logiciel") sont protégés par les lois sur le droit d'auteur et les traités internationaux. L'utilisation de ce Logiciel est soumise aux termes et conditions de cet accord de licence.
+
+1. OCTROI DE LICENCE
+-------------------
+YEHI OR Tech Solutions vous accorde une licence limitée, non exclusive et non transférable pour utiliser le Logiciel conformément aux termes de cet accord.
+
+2. UTILISATIONS AUTORISÉES
+-------------------------
+Vous êtes autorisé à :
+- Installer et utiliser le Logiciel sur vos propres systèmes de trading
+- Utiliser le Logiciel à des fins personnelles et commerciales
+- Créer des sauvegardes du Logiciel pour vos propres besoins
+
+3. RESTRICTIONS
+--------------
+Vous N'ÊTES PAS autorisé à :
+- Copier, distribuer, vendre ou louer le Logiciel à des tiers
+- Modifier, décompiler, désassembler ou faire de l'ingénierie inverse du Logiciel
+- Supprimer ou modifier les mentions de droits d'auteur
+- Utiliser le Logiciel pour créer des produits concurrents
+- Partager vos identifiants de licence avec des tiers
+
+4. PROPRIÉTÉ INTELLECTUELLE
+--------------------------
+Le Logiciel est et reste la propriété exclusive de YEHI OR Tech Solutions. Tous les droits non expressément accordés vous sont réservés.
+
+5. SUPPORT ET MISES À JOUR
+-------------------------
+- Support initial de 30 jours inclus
+- Mises à jour de sécurité et corrections de bugs incluses
+- Nouvelles fonctionnalités peuvent nécessiter une licence séparée
+
+6. LIMITATION DE GARANTIE
+------------------------
+LE LOGICIEL EST FOURNI "EN L'ÉTAT" SANS GARANTIE D'AUCUNE SORTE. YEHI OR TECH SOLUTIONS DÉCLINE TOUTE GARANTIE EXPRESSE OU IMPLICITE, Y COMPRIS MAIS SANS S'Y LIMITER, LES GARANTIES DE QUALITÉ MARCHANDE ET D'ADÉQUATION À UN USAGE PARTICULIER.
+
+7. LIMITATION DE RESPONSABILITÉ
+------------------------------
+EN AUCUN CAS YEHI OR TECH SOLUTIONS NE SERA RESPONSABLE DE DOMMAGES DIRECTS, INDIRECTS, ACCESSOIRES, SPÉCIAUX, EXEMPLAIRES OU CONSÉCUTIFS (Y COMPRIS, MAIS SANS S'Y LIMITER, L'ACQUISITION DE BIENS OU SERVICES DE SUBSTITUTION, LA PERTE D'USAGE, DE DONNÉES OU DE PROFITS, OU L'INTERRUPTION D'ACTIVITÉ) RÉSULTANT DE L'UTILISATION OU DE L'IMPOSSIBILITÉ D'UTILISER LE LOGICIEL.
+
+8. AVERTISSEMENT SUR LES RISQUES DE TRADING
+------------------------------------------
+AVERTISSEMENT IMPORTANT : Le trading sur les marchés financiers comporte des risques substantiels de perte. Les performances passées ne garantissent pas les résultats futurs. Vous devez être conscient des risques et être prêt à les accepter pour trader sur les marchés financiers. Ne tradez qu'avec de l'argent que vous pouvez vous permettre de perdre.
+
+9. RÉSILIATION
+-------------
+Cette licence est effective jusqu'à sa résiliation. Elle se terminera automatiquement si vous ne respectez pas ses termes. À la résiliation, vous devez cesser toute utilisation du Logiciel et détruire toutes les copies.
+
+10. DROIT APPLICABLE
+-------------------
+Cet accord est régi par les lois françaises. Tout litige sera soumis à la juridiction exclusive des tribunaux français.
+
+11. ACCORD COMPLET
+-----------------
+Cet accord constitue l'accord complet entre vous et YEHI OR Tech Solutions concernant le Logiciel et remplace tous les accords antérieurs.
+
+CONTACT
+=======
+YEHI OR Tech Solutions
+Email: legal@yehiortech.com
+Site Web: https://www.yehiortech.com
+
+En installant, copiant ou utilisant le Logiciel, vous acceptez d'être lié par les termes de cet accord de licence.
+
+© 2024 YEHI OR Tech Solutions. Tous droits réservés.

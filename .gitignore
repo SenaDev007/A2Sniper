@@ -1,0 +1,15 @@
+# MQL5 Compiled Files
+*.ex5
+*.ex4
+
+# Logs and temporary files
+*.log
+*.txt
+!LICENSE.txt
+
+# IDE files
+.vscode/
+.idea/
+.vs/
+*.suo
+*.user
