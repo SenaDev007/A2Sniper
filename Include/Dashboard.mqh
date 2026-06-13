@@ -50,7 +50,7 @@ public:
                     ~CDashboard();
    
    // Méthodes d'initialisation
-   bool              Initialize(string prefix="ShalomEA_", int x=20, int y=20, int width=300, int height=400);
+   bool              Initialize(string prefix="A2SniperTrading_", int x=20, int y=20, int width=300, int height=400);
    void              Deinitialize();
    
    // Méthodes de mise à jour
@@ -74,7 +74,7 @@ public:
 //+------------------------------------------------------------------+
 CDashboard::CDashboard()
 {
-   m_prefix = "ShalomEA_";
+   m_prefix = "A2SniperTrading_";
    m_x_pos = 20;
    m_y_pos = 20;
    m_width = 300;
@@ -114,7 +114,7 @@ CDashboard::~CDashboard()
 //+------------------------------------------------------------------+
 //| Initialisation du dashboard                                      |
 //+------------------------------------------------------------------+
-bool CDashboard::Initialize(string prefix="ShalomEA_", int x=20, int y=20, int width=300, int height=400)
+bool CDashboard::Initialize(string prefix="A2SniperTrading_", int x=20, int y=20, int width=300, int height=400)
 {
    m_prefix = prefix;
    m_x_pos = x;
@@ -191,7 +191,7 @@ void CDashboard::CreateTitle()
    ObjectSetInteger(0, name, OBJPROP_CORNER, CORNER_LEFT_UPPER);
    ObjectSetInteger(0, name, OBJPROP_ANCHOR, ANCHOR_LEFT_UPPER);
    ObjectSetString(0, name, OBJPROP_FONT, m_font_name);
-   ObjectSetString(0, name, OBJPROP_TEXT, "SHALOM EA - DASHBOARD");
+   ObjectSetString(0, name, OBJPROP_TEXT, "A2SNIPER TRADING - DASHBOARD");
    ObjectSetInteger(0, name, OBJPROP_SELECTABLE, false);
    ObjectSetInteger(0, name, OBJPROP_SELECTED, false);
    ObjectSetInteger(0, name, OBJPROP_HIDDEN, true);

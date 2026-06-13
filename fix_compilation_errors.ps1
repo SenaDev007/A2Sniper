@@ -18,9 +18,9 @@ $content = $content -replace 'ArrayInitialize\(m_pattern_history, 0\);', '// Ini
 $content | Set-Content -Path $patternDetectorPath -Encoding UTF8
 Write-Host "✅ Corrections appliquées à PatternDetector.mqh"
 
-# Correction du fichier ShalomEA.mq5
-$shalomEAPath = "ShalomEA.mq5"
-$content = Get-Content -Path $shalomEAPath -Raw
+# Correction du fichier A2SniperTrading.mq5
+$a2SniperPath = "A2SniperTrading.mq5"
+$content = Get-Content -Path $a2SniperPath -Raw
 
 # 4. Correction de l'appel à la méthode Update
 $content = $content -replace 'ha_calculator->Update\(\);', 'ha_calculator.Update();'
@@ -29,9 +29,9 @@ $content = $content -replace 'ha_calculator->Update\(\);', 'ha_calculator.Update
 $content = $content -replace 'pattern_detector->DetectBuyPattern\(ha_calculator, ema_data, volume_buffer\)', 'pattern_detector.DetectBuyPattern(&ha_calculator, ema_data, volume_buffer)'
 $content = $content -replace 'pattern_detector->DetectSellPattern\(ha_calculator, ema_data, volume_buffer\)', 'pattern_detector.DetectSellPattern(&ha_calculator, ema_data, volume_buffer)'
 
-# Sauvegarde des corrections ShalomEA.mq5
-$content | Set-Content -Path $shalomEAPath -Encoding UTF8
-Write-Host "✅ Corrections appliquées à ShalomEA.mq5"
+# Sauvegarde des corrections A2SniperTrading.mq5
+$content | Set-Content -Path $a2SniperPath -Encoding UTF8
+Write-Host "✅ Corrections appliquées à A2SniperTrading.mq5"
 
 Write-Host ""
 Write-Host "========================================="

@@ -1,4 +1,4 @@
-# Manuel d'Utilisation - Shalom EA
+# Manuel d'Utilisation - A2Sniper Trading
 
 ## Expert Advisor de Scalping Heikin-Ashi Multi-Marchés
 
@@ -23,7 +23,7 @@
 
 ## Introduction
 
-Shalom EA est un Expert Advisor avancé conçu pour le trading automatique sur MetaTrader 5. Il utilise une stratégie de scalping basée sur les bougies Heikin-Ashi, les moyennes mobiles exponentielles (EMA) et la détection de patterns de retracement spécifiques.
+A2Sniper Trading est un Expert Advisor avancé conçu pour le trading automatique sur MetaTrader 5. Il utilise une stratégie de scalping basée sur les bougies Heikin-Ashi, les moyennes mobiles exponentielles (EMA) et la détection de patterns de retracement spécifiques.
 
 ### Caractéristiques Principales
 
@@ -55,14 +55,14 @@ Shalom EA est un Expert Advisor avancé conçu pour le trading automatique sur M
 
 1. **Copier les fichiers** :
    ```
-   ShalomEA.mq5 → MQL5/Experts/
+   A2SniperTrading.mq5 → MQL5/Experts/
    Include/*.mqh → MQL5/Experts/Include/
    Config/*.set → MQL5/Profiles/Templates/
    ```
 
 2. **Compiler l'EA** :
    - Ouvrir MetaEditor
-   - Ouvrir ShalomEA.mq5
+   - Ouvrir A2SniperTrading.mq5
    - Appuyer sur F7 pour compiler
    - Vérifier l'absence d'erreurs
 
@@ -73,7 +73,7 @@ Shalom EA est un Expert Advisor avancé conçu pour le trading automatique sur M
 
 4. **Attacher à un graphique** :
    - Ouvrir un graphique M1
-   - Glisser-déposer ShalomEA depuis le Navigateur
+   - Glisser-déposer A2SniperTrading depuis le Navigateur
    - Configurer les paramètres
    - Cliquer OK
 
@@ -85,9 +85,9 @@ Shalom EA est un Expert Advisor avancé conçu pour le trading automatique sur M
 
 Pour un démarrage rapide, utilisez les fichiers de configuration prédéfinis :
 
-- **ShalomEA_Default.set** : Configuration équilibrée
-- **ShalomEA_Forex.set** : Optimisée pour le Forex
-- **ShalomEA_Crypto.set** : Optimisée pour les Cryptos
+- **A2SniperTrading_Default.set** : Configuration équilibrée
+- **A2SniperTrading_Forex.set** : Optimisée pour le Forex
+- **A2SniperTrading_Crypto.set** : Optimisée pour les Cryptos
 
 ### Chargement d'une Configuration
 
@@ -182,12 +182,12 @@ Pour un démarrage rapide, utilisez les fichiers de configuration prédéfinis :
 #### Logs à Surveiller
 
 ```
-=== INITIALISATION SHALOM EA ===
+=== INITIALISATION A2SNIPER TRADING ===
 Symbole: EURUSD
 Timeframe: M1
 Risque par trade: 1.0%
 Méthode SL: ATR
-=== SHALOM EA INITIALISÉ AVEC SUCCÈS ===
+=== A2SNIPER TRADING INITIALISÉ AVEC SUCCÈS ===
 ```
 
 #### Signaux de Trading

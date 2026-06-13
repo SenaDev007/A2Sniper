@@ -1,12 +1,12 @@
-# Structure du Projet Shalom EA
+# Structure du Projet A2Sniper Trading
 
 ## Vue d'Ensemble
 
-Le projet Shalom EA est organisé de manière modulaire pour faciliter la maintenance, les tests et les extensions futures. Voici la structure complète du projet :
+Le projet A2Sniper Trading est organisé de manière modulaire pour faciliter la maintenance, les tests et les extensions futures. Voici la structure complète du projet :
 
 ```
-Shalom EA/
-├── 📄 ShalomEA.mq5                     # Expert Advisor principal
+A2Sniper Trading/
+├── 📄 A2SniperTrading.mq5                     # Expert Advisor principal
 ├── 📄 README.md                        # Documentation principale
 ├── 📄 LICENSE.txt                      # Licence propriétaire
 ├── 📄 VERSION.md                       # Historique des versions
@@ -16,22 +16,23 @@ Shalom EA/
 │   ├── 📄 HeikinAshiCalculator.mqh    # Calculateur Heikin-Ashi
 │   ├── 📄 PatternDetector.mqh         # Détecteur de patterns
 │   ├── 📄 RiskManager.mqh             # Gestionnaire de risque
-│   └── 📄 SignalValidator.mqh         # Validateur de signaux
+│   ├── 📄 SignalValidator.mqh         # Validateur de signaux
+│   └── 📄 OrderBookEngine.mqh         # Moteur d'analyse du carnet d'ordres
 │
 ├── 📁 Config/                          # Configurations prédéfinies
-│   ├── 📄 ShalomEA_Default.set        # Configuration par défaut
-│   ├── 📄 ShalomEA_Forex.set          # Optimisée pour Forex
-│   └── 📄 ShalomEA_Crypto.set         # Optimisée pour Crypto
+│   ├── 📄 A2SniperTrading_Default.set        # Configuration par défaut
+│   ├── 📄 A2SniperTrading_Forex.set          # Optimisée pour Forex
+│   └── 📄 A2SniperTrading_Crypto.set         # Optimisée pour Crypto
 │
 ├── 📁 Documentation/                   # Documentation complète
 │   ├── 📄 Manuel_Utilisateur.md       # Guide d'utilisation
 │   └── 📄 Guide_Installation.md       # Instructions d'installation
 │
 ├── 📁 Scripts/                         # Utilitaires et tests
-│   └── 📄 ShalomEA_QuickTest.mq5      # Script de test rapide
+│   └── 📄 A2SniperTrading_QuickTest.mq5      # Script de test rapide
 │
 └── 📁 Indicators/                      # Indicateurs complémentaires
-    └── 📄 ShalomEA_HeikinAshi.mq5     # Indicateur Heikin-Ashi visuel
+    └── 📄 A2SniperTrading_HeikinAshi.mq5     # Indicateur Heikin-Ashi visuel
 ```
 
 ---
@@ -40,7 +41,7 @@ Shalom EA/
 
 ### 🎯 Fichier Principal
 
-#### `ShalomEA.mq5`
+#### `A2SniperTrading.mq5`
 - **Rôle** : Expert Advisor principal
 - **Taille** : ~12.7 KB
 - **Fonctions** :
@@ -102,7 +103,7 @@ Shalom EA/
 
 ### ⚙️ Configurations (`Config/`)
 
-#### `ShalomEA_Default.set`
+#### `A2SniperTrading_Default.set`
 - **Usage** : Configuration équilibrée pour tous marchés
 - **Paramètres** :
   - Risk_Percent = 1.0%
@@ -110,7 +111,7 @@ Shalom EA/
   - Max_Spread = 3.0 pips
   - Max_Positions = 3
 
-#### `ShalomEA_Forex.set`
+#### `A2SniperTrading_Forex.set`
 - **Usage** : Optimisée pour les paires de devises majeures
 - **Paramètres** :
   - Risk_Percent = 0.8%
@@ -118,7 +119,7 @@ Shalom EA/
   - Max_Spread = 2.5 pips
   - Trading_Hours = "08:00-17:00"
 
-#### `ShalomEA_Crypto.set`
+#### `A2SniperTrading_Crypto.set`
 - **Usage** : Adaptée aux cryptomonnaies
 - **Paramètres** :
   - Risk_Percent = 1.5%
@@ -148,7 +149,7 @@ Shalom EA/
 
 ### 🛠️ Utilitaires (`Scripts/`)
 
-#### `ShalomEA_QuickTest.mq5`
+#### `A2SniperTrading_QuickTest.mq5`
 - **Rôle** : Script de test et validation
 - **Taille** : ~12.1 KB
 - **Fonctionnalités** :
@@ -159,7 +160,7 @@ Shalom EA/
 
 ### 📊 Indicateurs (`Indicators/`)
 
-#### `ShalomEA_HeikinAshi.mq5`
+#### `A2SniperTrading_HeikinAshi.mq5`
 - **Rôle** : Indicateur visuel Heikin-Ashi
 - **Taille** : ~15.7 KB
 - **Fonctionnalités** :
@@ -201,7 +202,7 @@ MarketData → HeikinAshi → PatternDetector → SignalValidator → RiskManage
 ### 🧩 Dépendances entre Modules
 
 ```
-ShalomEA.mq5
+A2SniperTrading.mq5
 ├── HeikinAshiCalculator.mqh
 ├── PatternDetector.mqh
 │   └── HeikinAshiCalculator.mqh
@@ -217,13 +218,13 @@ ShalomEA.mq5
 ### 📂 Mapping des Dossiers
 
 ```
-Projet Shalom EA/              →  MetaTrader 5/
-├── ShalomEA.mq5              →  MQL5/Experts/
+Projet A2Sniper Trading/              →  MetaTrader 5/
+├── A2SniperTrading.mq5              →  MQL5/Experts/
 ├── Include/*.mqh             →  MQL5/Experts/Include/
 ├── Config/*.set              →  MQL5/Profiles/Templates/
 ├── Scripts/*.mq5             →  MQL5/Scripts/
 ├── Indicators/*.mq5          →  MQL5/Indicators/
-└── Documentation/            →  MQL5/Files/ShalomEA/Documentation/
+└── Documentation/            →  MQL5/Files/A2SniperTrading/Documentation/
 ```
 
 ### 🔧 Compilation
@@ -231,16 +232,16 @@ Projet Shalom EA/              →  MetaTrader 5/
 1. **Ordre de Compilation** :
    ```
    1. Include/*.mqh (automatique)
-   2. ShalomEA.mq5
-   3. Scripts/ShalomEA_QuickTest.mq5
-   4. Indicators/ShalomEA_HeikinAshi.mq5
+   2. A2SniperTrading.mq5
+   3. Scripts/A2SniperTrading_QuickTest.mq5
+   4. Indicators/A2SniperTrading_HeikinAshi.mq5
    ```
 
 2. **Fichiers Générés** :
    ```
-   ShalomEA.ex5
-   ShalomEA_QuickTest.ex5
-   ShalomEA_HeikinAshi.ex5
+   A2SniperTrading.ex5
+   A2SniperTrading_QuickTest.ex5
+   A2SniperTrading_HeikinAshi.ex5
    ```
 
 ---
@@ -260,7 +261,7 @@ Projet Shalom EA/              →  MetaTrader 5/
 
 | Fichier | Lignes | Classes | Fonctions | Complexité |
 |---------|--------|---------|-----------|------------|
-| ShalomEA.mq5 | ~400 | 0 | 15 | Moyenne |
+| A2SniperTrading.mq5 | ~400 | 0 | 15 | Moyenne |
 | HeikinAshiCalculator.mqh | ~500 | 1 | 20 | Faible |
 | PatternDetector.mqh | ~600 | 1 | 25 | Élevée |
 | RiskManager.mqh | ~550 | 1 | 22 | Moyenne |

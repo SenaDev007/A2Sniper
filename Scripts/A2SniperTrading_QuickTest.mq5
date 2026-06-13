@@ -1,12 +1,12 @@
 //+------------------------------------------------------------------+
-//|                                           ShalomEA_QuickTest.mq5 |
+//|                                           A2SniperTrading_QuickTest.mq5 |
 //|                        Copyright 2024, YEHI OR Tech Solutions    |
 //|                                       https://www.yehiortech.com |
 //+------------------------------------------------------------------+
 #property copyright "Copyright 2024, YEHI OR Tech Solutions"
 #property link      "https://www.yehiortech.com"
 #property version   "1.00"
-#property description "Script de test rapide pour Shalom EA"
+#property description "Script de test rapide pour A2Sniper Trading"
 #property script_show_inputs
 
 //--- Paramètres d'entrée
@@ -28,7 +28,7 @@ input bool               Test_RiskManager = true;           // Tester gestionnai
 //+------------------------------------------------------------------+
 void OnStart()
 {
-   Print("=== DÉBUT TEST RAPIDE SHALOM EA ===");
+   Print("=== DÉBUT TEST RAPIDE A2SNIPER TRADING ===");
    Print("Symbole testé: ", Symbol());
    Print("Timeframe: ", EnumToString(Period()));
    Print("Nombre de barres: ", Test_Bars);
@@ -107,7 +107,7 @@ void OnStart()
    if(all_tests_passed)
    {
       Print("🎉 TOUS LES TESTS SONT PASSÉS AVEC SUCCÈS!");
-      Print("Shalom EA est prêt à être utilisé sur ce symbole.");
+      Print("A2Sniper Trading est prêt à être utilisé sur ce symbole.");
    }
    else
    {
@@ -115,7 +115,7 @@ void OnStart()
       Print("Vérifiez les erreurs ci-dessus avant d'utiliser l'EA.");
    }
    
-   Print("=== FIN TEST RAPIDE SHALOM EA ===");
+   Print("=== FIN TEST RAPIDE A2SNIPER TRADING ===");
 }
 
 //+------------------------------------------------------------------+

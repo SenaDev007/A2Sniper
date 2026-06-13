@@ -1,12 +1,12 @@
 //+------------------------------------------------------------------+
-//|                                        ShalomEA_HeikinAshi.mq5 |
+//|                                        A2SniperTrading_HeikinAshi.mq5 |
 //|                        Copyright 2024, YEHI OR Tech Solutions    |
 //|                                       https://www.yehiortech.com |
 //+------------------------------------------------------------------+
 #property copyright "Copyright 2024, YEHI OR Tech Solutions"
 #property link      "https://www.yehiortech.com"
 #property version   "1.00"
-#property description "Indicateur Heikin-Ashi pour Shalom EA avec signaux visuels"
+#property description "Indicateur Heikin-Ashi pour A2Sniper Trading avec signaux visuels"
 
 #property indicator_chart_window
 #property indicator_buffers 8
@@ -142,9 +142,9 @@ int OnInit()
    sell_signals = 0;
    
    //--- Nom de l'indicateur
-   IndicatorSetString(INDICATOR_SHORTNAME, "Shalom EA Heikin-Ashi");
+   IndicatorSetString(INDICATOR_SHORTNAME, "A2Sniper Trading Heikin-Ashi");
    
-   Print("Indicateur Shalom EA Heikin-Ashi initialisé");
+   Print("Indicateur A2Sniper Trading Heikin-Ashi initialisé");
    return INIT_SUCCEEDED;
 }
 
@@ -160,7 +160,7 @@ void OnDeinit(const int reason)
       IndicatorRelease(volume_handle);
    
    //--- Suppression des objets graphiques
-   ObjectsDeleteAll(0, "ShalomHA_");
+   ObjectsDeleteAll(0, "A2SniperHA_");
    ChartRedraw();
 }
 
@@ -287,7 +287,7 @@ void DetectSignals(int index, int rates_total)
                   
                   if(index == 0) // Signal en temps réel
                   {
-                     Alert("Shalom EA - Signal ACHAT détecté sur ", Symbol());
+                     Alert("A2Sniper Trading - Signal ACHAT détecté sur ", Symbol());
                   }
                }
             }
@@ -320,7 +320,7 @@ void DetectSignals(int index, int rates_total)
                   
                   if(index == 0) // Signal en temps réel
                   {
-                     Alert("Shalom EA - Signal VENTE détecté sur ", Symbol());
+                     Alert("A2Sniper Trading - Signal VENTE détecté sur ", Symbol());
                   }
                }
             }
@@ -417,7 +417,7 @@ void UpdateInfoPanel()
    color text_color = clrWhite;
    
    //--- Création du panel de fond
-   string panel_name = "ShalomHA_InfoPanel";
+   string panel_name = "A2SniperHA_InfoPanel";
    if(ObjectFind(0, panel_name) < 0)
    {
       ObjectCreate(0, panel_name, OBJ_RECTANGLE_LABEL, 0, 0, 0);
@@ -432,12 +432,12 @@ void UpdateInfoPanel()
    }
    
    //--- Titre
-   CreateLabel("ShalomHA_Title", x + 10, y + 5, "SHALOM EA SIGNALS", clrYellow, 9);
+   CreateLabel("A2SniperHA_Title", x + 10, y + 5, "A2SNIPER TRADING SIGNALS", clrYellow, 9);
    
    //--- Statistiques
-   CreateLabel("ShalomHA_TotalSignals", x + 10, y + 25, "Total Signaux: " + IntegerToString(total_signals), text_color, 8);
-   CreateLabel("ShalomHA_BuySignals", x + 10, y + 40, "Signaux Achat: " + IntegerToString(buy_signals), clrLime, 8);
-   CreateLabel("ShalomHA_SellSignals", x + 10, y + 55, "Signaux Vente: " + IntegerToString(sell_signals), clrRed, 8);
+   CreateLabel("A2SniperHA_TotalSignals", x + 10, y + 25, "Total Signaux: " + IntegerToString(total_signals), text_color, 8);
+   CreateLabel("A2SniperHA_BuySignals", x + 10, y + 40, "Signaux Achat: " + IntegerToString(buy_signals), clrLime, 8);
+   CreateLabel("A2SniperHA_SellSignals", x + 10, y + 55, "Signaux Vente: " + IntegerToString(sell_signals), clrRed, 8);
    
    //--- État actuel
    string current_trend = "Neutre";
@@ -457,10 +457,10 @@ void UpdateInfoPanel()
       }
    }
    
-   CreateLabel("ShalomHA_CurrentTrend", x + 10, y + 75, "Tendance: " + current_trend, trend_color, 8);
+   CreateLabel("A2SniperHA_CurrentTrend", x + 10, y + 75, "Tendance: " + current_trend, trend_color, 8);
    
    //--- Dernière mise à jour
-   CreateLabel("ShalomHA_LastUpdate", x + 10, y + 95, "MAJ: " + TimeToString(TimeCurrent(), TIME_MINUTES), clrSilver, 7);
+   CreateLabel("A2SniperHA_LastUpdate", x + 10, y + 95, "MAJ: " + TimeToString(TimeCurrent(), TIME_MINUTES), clrSilver, 7);
 }
 
 //+------------------------------------------------------------------+

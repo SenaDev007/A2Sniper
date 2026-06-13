@@ -1,8 +1,8 @@
-# 🚀 Shalom EA - Expert Advisor MT5
+# 🚀 A2Sniper Trading - Expert Advisor MT5
 
 ## Stratégie de Scalping Heikin-Ashi Multi-Marchés
 
-[![Version](https://img.shields.io/badge/Version-1.00-blue.svg)](https://github.com/yehiortech/shalom-ea)
+[![Version](https://img.shields.io/badge/Version-1.00-blue.svg)](https://github.com/yehiortech/a2sniper-trading)
 [![Platform](https://img.shields.io/badge/Platform-MetaTrader%205-green.svg)](https://www.metatrader5.com)
 [![License](https://img.shields.io/badge/License-Proprietary-red.svg)](LICENSE)
 
@@ -13,7 +13,7 @@
 
 ## 📋 Description
 
-Shalom EA est un Expert Advisor avancé conçu pour le trading automatique haute précision sur MetaTrader 5. Il utilise une stratégie sophistiquée basée sur l'analyse des bougies Heikin-Ashi, combinée à des filtres de marché intelligents et un système de gestion de risque robuste.
+A2Sniper Trading est un Expert Advisor avancé conçu pour le trading automatique haute précision sur MetaTrader 5. Il utilise une stratégie sophistiquée basée sur l'analyse des bougies Heikin-Ashi, combinée à des filtres de marché intelligents et un système de gestion de risque robuste.
 
 ### 🎯 Objectifs de Performance
 - **Taux de Réussite Visé** : 95-100%
@@ -61,17 +61,17 @@ Shalom EA est un Expert Advisor avancé conçu pour le trading automatique haute
 ## 📁 Structure du Projet
 
 ```
-Shalom EA/
-├── ShalomEA.mq5                    # Fichier principal de l'Expert Advisor
+A2Sniper Trading/
+├── A2SniperTrading.mq5                    # Fichier principal de l'Expert Advisor
 ├── Include/                        # Classes et modules
 │   ├── HeikinAshiCalculator.mqh   # Calculateur Heikin-Ashi
 │   ├── PatternDetector.mqh        # Détecteur de patterns
 │   ├── RiskManager.mqh            # Gestionnaire de risque
 │   └── SignalValidator.mqh        # Validateur de signaux
 ├── Config/                         # Configurations prédéfinies
-│   ├── ShalomEA_Default.set       # Configuration par défaut
-│   ├── ShalomEA_Forex.set         # Optimisée pour Forex
-│   └── ShalomEA_Crypto.set        # Optimisée pour Crypto
+│   ├── A2SniperTrading_Default.set       # Configuration par défaut
+│   ├── A2SniperTrading_Forex.set         # Optimisée pour Forex
+│   └── A2SniperTrading_Crypto.set        # Optimisée pour Crypto
 ├── Documentation/                  # Documentation complète
 │   ├── Manuel_Utilisateur.md      # Guide d'utilisation
 │   └── Guide_Installation.md      # Instructions d'installation
@@ -92,7 +92,7 @@ Shalom EA/
 1. **Télécharger les fichiers** du projet
 2. **Copier dans MT5** :
    ```
-   ShalomEA.mq5 → MQL5/Experts/
+   A2SniperTrading.mq5 → MQL5/Experts/
    Include/*.mqh → MQL5/Experts/Include/
    Config/*.set → MQL5/Profiles/Templates/
    ```
@@ -178,7 +178,7 @@ Max_Daily_Loss = 4.0
 
 ### Démarrage
 1. **Ouvrir un graphique M1** du symbole choisi
-2. **Attacher Shalom EA** depuis le Navigateur
+2. **Attacher A2Sniper Trading** depuis le Navigateur
 3. **Vérifier le smiley vert** (EA actif)
 4. **Surveiller les logs** pour les premiers signaux
 
@@ -274,6 +274,6 @@ Experts en Solutions de Trading Automatisé
 
 ---
 
-**Shalom EA - Votre Partenaire pour un Trading Automatisé de Précision**
+**A2Sniper Trading - Votre Partenaire pour un Trading Automatisé de Précision**
 
 *Développé avec ❤️ par l'équipe YEHI OR Tech*

@@ -1,4 +1,52 @@
-# Shalom EA - Historique des Versions
+# A2Sniper Trading - Historique des Versions
+
+## Version 4.1 (2026-06-13) - Order Book Engine
+
+### 🔥 Mise à jour majeure : Carnet d'Ordres (Order Book)
+
+Cette version ajoute l'analyse du carnet d'ordres en temps réel pour une validation institutionnelle des signaux sniper.
+
+### ✨ Nouvelles Fonctionnalités
+
+#### Order Book Engine (`OrderBookEngine.mqh`)
+- ✅ **Analyse du carnet d'ordres** via `MarketBookGet()` de MT5
+- ✅ **Détection des murs d'ordres** (bid/ask walls) - identification des niveaux de support/résistance institutionnels
+- ✅ **Imbalance bid/ask** - calcul de la pression acheteur/vendeur en temps réel
+- ✅ **Validation sniper** - le carnet confirme ou rejette les signaux de précision
+- ✅ **Ajustement dynamique du SL** - placement du stop loss derrière les murs d'ordres détectés
+- ✅ **Détection d'absorption** - identification des murs d'absorption institutionnels (volume massif)
+- ✅ **Mode strict/optionnel** - RequireBookConfirmation pour exiger la validation du carnet
+- ✅ **Graceful degradation** - fonctionne même si le broker ne fournit pas le carnet
+
+#### Intégration dans le Pipeline Sniper
+- ✅ Phase 7 ajoutée : **ORDER BOOK VALIDATION** entre Session Filter et Risk Check
+- ✅ Score de confiance du carnet (0-100) basé sur liquidité + imbalance + murs
+- ✅ Ajustement automatique du SL si un mur d'ordres est détecté
+- ✅ Rejet automatique en mode strict si imbalance extreme contre le signal
+- ✅ Paramètres configurables : `EnableOrderBook`, `RequireBookConfirmation`, `UseBookSLAdjust`
+
+#### Constantes Order Book (CommonTypes.mqh)
+- `OB_BOOK_WALL_MULTIPLIER = 3.0` - Seuil de détection des murs
+- `OB_BOOK_IMBALANCE_THRESH = 1.5` - Seuil d'imbalance significatif
+- `OB_BOOK_EXTREME_IMBALANCE = 2.5` - Seuil d'imbalance extreme
+- `OB_BOOK_MIN_LIQUIDITY = 0.3` - Ratio liquidité minimum
+- `OB_BOOK_CONFIDENCE_BOOST = 5.0` - Bonus score si OrderBook confirme
+
+### 🔧 Modifications
+
+- Renommage complet : Shalom EA → A2Sniper Trading
+  - Tous les fichiers, références, logs, alerts, et documentation mis à jour
+  - `ShalomEA.mq5` → `A2SniperTrading.mq5`
+  - Préfixe dashboard `ShalomEA_` → `A2SniperTrading_`
+  - Préfixe indicateurs `ShalomHA_` → `A2SniperHA_`
+
+### ⚠️ Notes de compatibilité
+
+- L'OrderBook Engine nécessite un broker ECN/STP avec profondeur de marché
+- Si le carnet n'est pas disponible, le bot fonctionne normalement (mode dégradé)
+- `RequireBookConfirmation = false` par défaut (recommandé pour la compatibilité)
+
+---
 
 ## Version 1.00 (2024-07-20) - Version Initiale
 
@@ -91,7 +139,7 @@ Cette version initiale implémente toutes les fonctionnalités principales défi
 
 #### Structure Modulaire
 ```
-ShalomEA.mq5                    # Expert Advisor principal
+A2SniperTrading.mq5                    # Expert Advisor principal
 ├── HeikinAshiCalculator.mqh    # Calculs Heikin-Ashi
 ├── PatternDetector.mqh         # Détection de patterns
 ├── RiskManager.mqh             # Gestion de risque

@@ -1,12 +1,12 @@
 //+------------------------------------------------------------------+
-//|                                                      ShalomEA.mq5 |
+//|                                                      A2SniperTrading.mq5 |
 //|                        Copyright 2024, YEHI OR Tech Solutions    |
 //| A2Sniper Ultimate v4.0 - Wall Street Level Trading System        |
 //| Full integration: Sniper + State Machine + Adaptive Risk         |
 //+------------------------------------------------------------------+
 #property copyright "Copyright 2024, YEHI OR Tech Solutions"
 #property version   "4.00"
-#property description "Shalom EA v4.0 - Wall Street Level Trading System"
+#property description "A2Sniper Trading v4.0 - Wall Street Level Trading System"
 #property description "Trade Sniper + Adaptive Risk + Position State Machine"
 #property description "SMC/ICT + Strategic Reversal + Smart Money"
 #property description "95%+ Reliability Target"
@@ -37,6 +37,7 @@
 #include "Include\NewsFilterEngine.mqh"
 #include "Include\MachineLearningEngine.mqh"
 #include "Include\BacktestIntelligenceEngine.mqh"
+#include "Include\OrderBookEngine.mqh"
 
 //+------------------------------------------------------------------+
 //| Parametres d'entree                                              |
@@ -88,6 +89,12 @@ input ENUM_TIMEFRAMES HTF_Timeframe = PERIOD_H4;       // Timeframe superieur
 input ENUM_TIMEFRAMES MTF_Timeframe = PERIOD_H1;       // Timeframe moyen
 input ENUM_TIMEFRAMES LTF_Timeframe = PERIOD_M15;      // Timeframe execution
 
+//--- Order Book
+input group           "=== Order Book (Carnet d'Ordres) ==="
+input bool            EnableOrderBook = true;           // Activer l'analyse du carnet d'ordres
+input bool            RequireBookConfirmation = false;   // Exiger confirmation du carnet (strict)
+input bool            UseBookSLAdjust = true;            // Ajuster SL sur les murs d'ordres
+
 //--- Dashboard
 input group           "=== Dashboard ==="
 input bool            EnableDashboard = true;           // Afficher le dashboard
@@ -128,6 +135,7 @@ CStatisticsDatabase     g_statistics;
 CNewsFilterEngine       g_news_filter;
 CMachineLearningEngine  g_ml_engine;
 CBacktestIntelligenceEngine g_bt_intelligence;
+COrderBookEngine           g_order_book;
 
 //--- Etat global
 bool              g_all_initialized = false;
@@ -143,7 +151,7 @@ int               g_last_sniper_score = 0;
 int OnInit()
   {
    Print("========================================");
-   Print("  Shalom EA v4.0 - Wall Street Level");
+   Print("  A2Sniper Trading v4.0 - Wall Street Level");
    Print("  Trade Sniper + Adaptive Risk + PSM");
    Print("  95%+ Reliability Target");
    Print("========================================");
@@ -152,83 +160,94 @@ int OnInit()
    if(UseAdaptiveRisk)
      {
       if(!g_adaptive_risk.Initialize(RiskPercent, MaxDailyDD, MaxWeeklyDD, MaxMonthlyDD, MaxPositions, MaxDailyTrades, MagicNumber))
-        { Print("Shalom EA: ERREUR - Adaptive Risk Engine"); return INIT_FAILED; }
+        { Print("A2Sniper Trading: ERREUR - Adaptive Risk Engine"); return INIT_FAILED; }
      }
    else
      {
       if(!g_risk_manager.Initialize(RiskPercent, MaxDailyDD, MaxWeeklyDD, MaxMonthlyDD, MaxPositions, MagicNumber))
-        { Print("Shalom EA: ERREUR - Risk Manager"); return INIT_FAILED; }
+        { Print("A2Sniper Trading: ERREUR - Risk Manager"); return INIT_FAILED; }
      }
 
    //--- 2. Initialiser les moteurs d'analyse
    if(!g_market_structure.Initialize(10, 0, 100))
-     { Print("Shalom EA: ERREUR - Market Structure Engine"); return INIT_FAILED; }
+     { Print("A2Sniper Trading: ERREUR - Market Structure Engine"); return INIT_FAILED; }
    if(!g_order_blocks.Initialize(OB_LOOKBACK, 1.5, 20))
-     { Print("Shalom EA: ERREUR - Order Block Engine"); return INIT_FAILED; }
+     { Print("A2Sniper Trading: ERREUR - Order Block Engine"); return INIT_FAILED; }
    if(!g_fvg_engine.Initialize(FVG_LOOKBACK, 30))
-     { Print("Shalom EA: ERREUR - FVG Engine"); return INIT_FAILED; }
+     { Print("A2Sniper Trading: ERREUR - FVG Engine"); return INIT_FAILED; }
    if(!g_liquidity_engine.Initialize(LIQUIDITY_LOOKBACK, EQUAL_TOLERANCE_PIPS))
-     { Print("Shalom EA: ERREUR - Liquidity Engine"); return INIT_FAILED; }
+     { Print("A2Sniper Trading: ERREUR - Liquidity Engine"); return INIT_FAILED; }
    if(!g_session_engine.Initialize(GMT_Offset))
-     { Print("Shalom EA: ERREUR - Session Engine"); return INIT_FAILED; }
+     { Print("A2Sniper Trading: ERREUR - Session Engine"); return INIT_FAILED; }
    if(!g_volume_engine.Initialize(20, 1.5, 2.5))
-     { Print("Shalom EA: ERREUR - Volume Engine"); return INIT_FAILED; }
+     { Print("A2Sniper Trading: ERREUR - Volume Engine"); return INIT_FAILED; }
    if(!g_volatility_engine.Initialize(DEFAULT_ATR_PERIOD, 0.5, 3.0))
-     { Print("Shalom EA: ERREUR - Volatility Engine"); return INIT_FAILED; }
+     { Print("A2Sniper Trading: ERREUR - Volatility Engine"); return INIT_FAILED; }
 
    //--- 3. Moteurs composites
    if(!g_sre.Initialize(&g_market_structure, &g_order_blocks, &g_fvg_engine, &g_liquidity_engine))
-     { Print("Shalom EA: ERREUR - Strategic Reversal Engine"); return INIT_FAILED; }
+     { Print("A2Sniper Trading: ERREUR - Strategic Reversal Engine"); return INIT_FAILED; }
    if(!g_smart_money.Initialize(&g_market_structure, &g_order_blocks, &g_fvg_engine, &g_liquidity_engine))
-     { Print("Shalom EA: ERREUR - Smart Money Engine"); return INIT_FAILED; }
+     { Print("A2Sniper Trading: ERREUR - Smart Money Engine"); return INIT_FAILED; }
    if(!g_ict_engine.Initialize(&g_session_engine, &g_market_structure))
-     { Print("Shalom EA: ERREUR - ICT Engine"); return INIT_FAILED; }
+     { Print("A2Sniper Trading: ERREUR - ICT Engine"); return INIT_FAILED; }
    if(!g_ai_scoring.Initialize(&g_sre, &g_smart_money, &g_ict_engine, &g_order_blocks,
                                 &g_fvg_engine, &g_liquidity_engine, &g_volume_engine,
                                 &g_volatility_engine, &g_session_engine, MinSignalScore))
-     { Print("Shalom EA: ERREUR - AI Scoring Engine"); return INIT_FAILED; }
+     { Print("A2Sniper Trading: ERREUR - AI Scoring Engine"); return INIT_FAILED; }
 
    //--- 4. Trade Executor
    if(!g_trade_executor.Initialize(&g_risk_manager, MagicNumber))
-     { Print("Shalom EA: ERREUR - Trade Executor"); return INIT_FAILED; }
+     { Print("A2Sniper Trading: ERREUR - Trade Executor"); return INIT_FAILED; }
 
    //--- 5. Trade Manager classique
    if(!g_trade_manager.Initialize(&g_trade_executor, &g_volatility_engine,
                                     EnableBreakEven, EnableTrailingStop, EnablePartialClose, TrailingMode))
-     { Print("Shalom EA: ERREUR - Trade Manager"); return INIT_FAILED; }
+     { Print("A2Sniper Trading: ERREUR - Trade Manager"); return INIT_FAILED; }
 
    //--- 6. Position State Machine (Wall Street)
    if(!g_position_sm.Initialize(&g_trade_executor, &g_volatility_engine, &g_market_structure,
                                   EnableBreakEven, EnableTrailingStop, EnablePartialClose,
                                   EnableStructuralSL, TrailingMode))
-     { Print("Shalom EA: ERREUR - Position State Machine"); return INIT_FAILED; }
+     { Print("A2Sniper Trading: ERREUR - Position State Machine"); return INIT_FAILED; }
 
    //--- 7. Trade Sniper Engine (Wall Street)
    if(!g_sniper_engine.Initialize(&g_market_structure, &g_order_blocks, &g_fvg_engine,
                                     &g_liquidity_engine, &g_volatility_engine,
                                     &g_session_engine, &g_volume_engine, MinSniperScore))
-     { Print("Shalom EA: ERREUR - Trade Sniper Engine"); return INIT_FAILED; }
+     { Print("A2Sniper Trading: ERREUR - Trade Sniper Engine"); return INIT_FAILED; }
    g_sniper_engine.SetRequireKillzone(RequireKillzone);
 
    //--- 8. Support
    if(!g_dashboard.Initialize(10, 30, EnableDashboard))
-     { Print("Shalom EA: ERREUR - Dashboard"); return INIT_FAILED; }
+     { Print("A2Sniper Trading: ERREUR - Dashboard"); return INIT_FAILED; }
    if(!g_statistics.Initialize())
-     { Print("Shalom EA: ERREUR - Statistics Database"); return INIT_FAILED; }
+     { Print("A2Sniper Trading: ERREUR - Statistics Database"); return INIT_FAILED; }
    if(!g_news_filter.Initialize(RequireNewsFilter, 30, 30))
-     { Print("Shalom EA: ERREUR - News Filter"); return INIT_FAILED; }
+     { Print("A2Sniper Trading: ERREUR - News Filter"); return INIT_FAILED; }
    if(!g_ml_engine.Initialize(500, 30))
-     { Print("Shalom EA: ERREUR - ML Engine"); return INIT_FAILED; }
+     { Print("A2Sniper Trading: ERREUR - ML Engine"); return INIT_FAILED; }
    if(!g_bt_intelligence.Initialize(50))
-     { Print("Shalom EA: ERREUR - Backtest Intelligence"); return INIT_FAILED; }
+     { Print("A2Sniper Trading: ERREUR - Backtest Intelligence"); return INIT_FAILED; }
+
+   //--- 9. Order Book Engine
+   if(EnableOrderBook)
+     {
+      if(!g_order_book.Initialize(_Symbol, OB_BOOK_WALL_MULTIPLIER, OB_BOOK_IMBALANCE_THRESH,
+                                   OB_BOOK_EXTREME_IMBALANCE, 10, OB_BOOK_MIN_LIQUIDITY, OB_BOOK_MAX_LEVELS))
+        { Print("A2Sniper Trading: ERREUR - Order Book Engine"); return INIT_FAILED; }
+     }
+   else
+      g_order_book.SetEnabled(false);
 
    g_statistics.LoadFromHistory();
    g_all_initialized = true;
 
-   Print("Shalom EA: Tous les moteurs initialises avec succes");
-   Print("Shalom EA: Risk=", RiskPercent, "% | Sniper>=", MinSniperScore,
+   Print("A2Sniper Trading: Tous les moteurs initialises avec succes");
+   Print("A2Sniper Trading: Risk=", RiskPercent, "% | Sniper>=", MinSniperScore,
          " | R:R>=", MinRiskReward, " | AdaptiveRisk=", UseAdaptiveRisk ? "ON" : "OFF",
-         " | StructuralSL=", EnableStructuralSL ? "ON" : "OFF");
+         " | StructuralSL=", EnableStructuralSL ? "ON" : "OFF",
+         " | OrderBook=", EnableOrderBook ? (g_order_book.IsAvailable() ? "ON" : "DEGRADE") : "OFF");
 
    return INIT_SUCCEEDED;
   }
@@ -260,9 +279,10 @@ void OnDeinit(const int reason)
    g_order_blocks.Deinitialize();
    g_market_structure.Deinitialize();
    g_risk_manager.Deinitialize();
+   g_order_book.Deinitialize();
 
    g_all_initialized = false;
-   Print("Shalom EA: Expert desinitialise - Raison: ", reason);
+   Print("A2Sniper Trading: Expert desinitialise - Raison: ", reason);
   }
 
 //+------------------------------------------------------------------+
@@ -303,13 +323,17 @@ void OnTick()
       g_smart_money.Update();
       g_ict_engine.Update();
 
+      //--- Order Book update (chaque nouvelle bougie)
+      if(EnableOrderBook)
+         g_order_book.Update();
+
       //--- 3. Analyser les signaux (seulement si spread acceptable)
       bool can_trade = UseAdaptiveRisk ? g_adaptive_risk.CanOpenTrade(SIGNAL_BUY) : g_risk_manager.CanOpenTrade(SIGNAL_BUY);
       bool news_ok = g_news_filter.CanTrade();
       if(spread_ok && can_trade && news_ok)
          AnalyzeAndExecute();
       else if(!spread_ok)
-         Print("Shalom EA: Spread trop eleve - Analyse sautee");
+         Print("A2Sniper Trading: Spread trop eleve - Analyse sautee");
 
       g_last_analysis_time = TimeCurrent();
      }
@@ -406,7 +430,44 @@ void TryExecuteSniperSignal(ENUM_SIGNAL_TYPE direction)
    if(RequireSessionFilter && !g_session_engine.IsOptimalTradingTime())
       if(ai_score.total_score < 90.0) return;  // Seuil plus eleve hors session
 
-   //--- 7. PHASE RISK: Verification du risque adaptatif
+   //--- 7. PHASE ORDER BOOK: Validation du carnet d'ordres
+   double book_sl = sniper.stop_loss; // SL ajuste par le carnet
+   if(EnableOrderBook && g_order_book.IsAvailable())
+     {
+      double atr = g_volatility_engine.GetCurrentATR();
+      SOrderBookValidation book_val = g_order_book.ValidateSignal(direction, sniper.entry_price,
+                                                                    sniper.stop_loss, atr);
+
+      //--- Mode strict: rejeter si le carnet ne confirme pas
+      if(RequireBookConfirmation && !book_val.liquidity_ok)
+        {
+         Print("A2Sniper Trading: OrderBook REJET - Liquidite insuffisante (", book_val.rejection_reason, ")");
+         return;
+        }
+
+      //--- Mode strict: rejeter si imbalance extreme contre le signal
+      if(RequireBookConfirmation && book_val.confidence_score < 30.0)
+        {
+         Print("A2Sniper Trading: OrderBook REJET - Confiance trop faible (", DoubleToString(book_val.confidence_score, 1), "/100)");
+         return;
+        }
+
+      //--- Ajuster le SL base sur les murs d'ordres
+      if(UseBookSLAdjust && book_val.wall_sl_adjust > 0 && book_val.wall_sl_adjust != sniper.stop_loss)
+        {
+         book_sl = book_val.wall_sl_adjust;
+         Print("A2Sniper Trading: OrderBook SL ajuste - SL original=", sniper.stop_loss,
+               " -> SL carnet=", book_sl);
+        }
+
+      //--- Log de la validation
+      Print("A2Sniper Trading: OrderBook Validation - Confiance=", DoubleToString(book_val.confidence_score, 1),
+            "/100 | Imbalance=", g_order_book.GetImbalanceName(),
+            " | Liquidite=", book_val.liquidity_ok ? "OK" : "FAIBLE",
+            " | Mur=", book_val.wall_supports ? "OUI" : "NON");
+     }
+
+   //--- 8. PHASE RISK: Verification du risque adaptatif
    bool can_trade;
    if(UseAdaptiveRisk)
       can_trade = g_adaptive_risk.CanOpenTrade(direction);
@@ -419,7 +480,7 @@ void TryExecuteSniperSignal(ENUM_SIGNAL_TYPE direction)
    if(HasOpenPositionInDirection(direction)) return;
 
    //--- 9. Calculer le lot adaptatif
-   double sl_distance_pips = MathAbs(sniper.entry_price - sniper.stop_loss) / _Point;
+   double sl_distance_pips = MathAbs(sniper.entry_price - book_sl) / _Point;
    double lot;
    if(UseAdaptiveRisk)
       lot = g_adaptive_risk.CalculateAdaptiveLotSize(sl_distance_pips);
@@ -437,7 +498,7 @@ void TryExecuteSniperSignal(ENUM_SIGNAL_TYPE direction)
 
    //--- 11. EXECUTION
    Print("========================================");
-   Print("Shalom EA: SIGNAL SNIPER ", (direction == SIGNAL_BUY) ? "ACHAT" : "VENTE");
+   Print("A2Sniper Trading: SIGNAL SNIPER ", (direction == SIGNAL_BUY) ? "ACHAT" : "VENTE");
    Print("  Sniper Score: ", sniper.sniper_score, "/100 (", GetSniperQualityName(sniper.quality), ")");
    Print("  AI Score: ", ai_score.total_score, "/100");
    Print("  SRE Score: ", sre_signal.total_score, "/100");
@@ -446,15 +507,17 @@ void TryExecuteSniperSignal(ENUM_SIGNAL_TYPE direction)
    Print("  Timing: ", GetSniperTimingName(sniper.timing));
    Print("  Entry Tech: ", GetEntryTechName(sniper.entry_technique));
    Print("  Risk Eff: ", UseAdaptiveRisk ? g_adaptive_risk.GetEffectiveRiskPercent() : g_risk_manager.GetEffectiveRiskPercent(), "%");
+   if(book_sl != sniper.stop_loss)
+      Print("  OrderBook SL: ", sniper.stop_loss, " -> ", book_sl, " (ajuste mur d'ordres)");
    Print("========================================");
 
    //--- Utiliser les niveaux du sniper (plus precis que SRE)
    int ticket = -1;
    if(direction == SIGNAL_BUY)
-      ticket = g_trade_executor.ExecuteBuy(sniper.entry_price, sniper.stop_loss,
+      ticket = g_trade_executor.ExecuteBuy(sniper.entry_price, book_sl,
                                             sniper.tp1, sniper.tp2, sniper.tp3, lot);
    else
-      ticket = g_trade_executor.ExecuteSell(sniper.entry_price, sniper.stop_loss,
+      ticket = g_trade_executor.ExecuteSell(sniper.entry_price, book_sl,
                                              sniper.tp1, sniper.tp2, sniper.tp3, lot);
 
    //--- Enregistrer dans les gestionnaires
@@ -462,12 +525,12 @@ void TryExecuteSniperSignal(ENUM_SIGNAL_TYPE direction)
      {
       //--- Trade Manager classique
       g_trade_manager.RegisterPosition(ticket, direction, sniper.entry_price,
-                                        sniper.stop_loss, sniper.tp1, sniper.tp2, sniper.tp3,
+                                        book_sl, sniper.tp1, sniper.tp2, sniper.tp3,
                                         lot, ai_score.total_score);
 
       //--- Position State Machine (Wall Street)
       g_position_sm.RegisterPosition(ticket, direction, sniper.entry_price,
-                                      sniper.stop_loss, sniper.tp1, sniper.tp2, sniper.tp3,
+                                      book_sl, sniper.tp1, sniper.tp2, sniper.tp3,
                                       lot, ai_score.total_score, sniper.sniper_score);
 
       //--- Enregistrer dans le Risk Manager
@@ -478,19 +541,19 @@ void TryExecuteSniperSignal(ENUM_SIGNAL_TYPE direction)
 
       //--- Dashboard
       if(EnableDashboard)
-         g_dashboard.DrawTradeLevels(sniper.entry_price, sniper.stop_loss,
+         g_dashboard.DrawTradeLevels(sniper.entry_price, book_sl,
                                       sniper.tp1, sniper.tp2, sniper.tp3, direction);
 
-      Print("Shalom EA: Trade sniper execute - Ticket=", ticket, " Lot=", lot,
+      Print("A2Sniper Trading: Trade sniper execute - Ticket=", ticket, " Lot=", lot,
             " SniperScore=", sniper.sniper_score);
 
       //--- Notifications
-      string notif = StringFormat("Shalom EA %s | Sniper=%d(%s) AI=%.0f SRE=%d R:R=%.1f",
+      string notif = StringFormat("A2Sniper Trading %s | Sniper=%d(%s) AI=%.0f SRE=%d R:R=%.1f",
                                    (direction == SIGNAL_BUY) ? "BUY" : "SELL",
                                    sniper.sniper_score, GetSniperQualityName(sniper.quality),
                                    ai_score.total_score, sre_signal.total_score, sniper.risk_reward);
       SendNotification(notif);
-      Alert("Shalom EA: ", (direction == SIGNAL_BUY) ? "ACHAT" : "VENTE",
+      Alert("A2Sniper Trading: ", (direction == SIGNAL_BUY) ? "ACHAT" : "VENTE",
             " Sniper=", sniper.sniper_score);
      }
   }
@@ -716,11 +779,11 @@ void OnTrade()
          string setup_type = (result.direction == SIGNAL_BUY) ? "Sniper_Bullish" : "Sniper_Bearish";
          g_bt_intelligence.UpdateSetupFromTrade(setup_type, is_win, profit, 0, 0);
 
-         Print("Shalom EA: Trade ferme - Ticket=", deal_ticket, " Profit=", profit,
+         Print("A2Sniper Trading: Trade ferme - Ticket=", deal_ticket, " Profit=", profit,
                " (", is_win ? "WIN" : "LOSS", ")");
 
          //--- Notification
-         string close_notif = StringFormat("Shalom EA Close | %s | P&L=%.2f", is_win ? "WIN" : "LOSS", profit);
+         string close_notif = StringFormat("A2Sniper Trading Close | %s | P&L=%.2f", is_win ? "WIN" : "LOSS", profit);
          SendNotification(close_notif);
 
          //--- Retirer des gestionnaires

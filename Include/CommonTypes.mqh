@@ -398,5 +398,13 @@ struct SStatistics
 #define MIN_MODULE_SCORE_VOL    10.0     // Volume doit etre > 0
 #define MIN_ENGINES_CONFIRMING  5        // Au moins 5 moteurs sur 8 doivent confirmer
 
+//--- Order Book Engine (Carnet d'ordres)
+#define OB_BOOK_WALL_MULTIPLIER 3.0      // Mur = x fois le volume moyen
+#define OB_BOOK_IMBALANCE_THRESH 1.5     // Seuil imbalance significatif
+#define OB_BOOK_EXTREME_IMBALANCE 2.5    // Seuil imbalance extreme
+#define OB_BOOK_MIN_LIQUIDITY    0.3     // Ratio liquidite minimum
+#define OB_BOOK_MAX_LEVELS       50      // Niveaux max a analyser
+#define OB_BOOK_CONFIDENCE_BOOST 5.0     // Bonus score sniper si OrderBook confirme
+
 #endif // A2SNIPER_COMMON_TYPES_MQH
 //+------------------------------------------------------------------+

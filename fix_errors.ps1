@@ -14,15 +14,15 @@ $content = $content -replace 'ArrayInitialize\(m_pattern_history, 0\);', '// Tab
 
 $content | Set-Content -Path $patternFile -Encoding UTF8
 
-# 2. Correction ShalomEA.mq5
-$shalomFile = "ShalomEA.mq5"
-$content = Get-Content -Path $shalomFile -Raw
+# 2. Correction A2SniperTrading.mq5
+$a2SniperFile = "A2SniperTrading.mq5"
+$content = Get-Content -Path $a2SniperFile -Raw
 
 # Corrections des appels de méthodes
 $content = $content -replace 'ha_calculator->Update\(\);', 'ha_calculator.Update();'
 $content = $content -replace 'pattern_detector->DetectBuyPattern\(ha_calculator,', 'pattern_detector.DetectBuyPattern(&ha_calculator,'
 $content = $content -replace 'pattern_detector->DetectSellPattern\(ha_calculator,', 'pattern_detector.DetectSellPattern(&ha_calculator,'
 
-$content | Set-Content -Path $shalomFile -Encoding UTF8
+$content | Set-Content -Path $a2SniperFile -Encoding UTF8
 
 Write-Host "Corrections appliquées avec succès!"

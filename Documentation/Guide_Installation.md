@@ -1,4 +1,4 @@
-# Guide d'Installation - Shalom EA
+# Guide d'Installation - A2Sniper Trading
 
 ## Installation Complète pour MetaTrader 5
 
@@ -49,7 +49,7 @@ Créer la structure suivante dans le dossier de données MT5 :
 ```
 MQL5/
 ├── Experts/
-│   ├── ShalomEA.mq5
+│   ├── A2SniperTrading.mq5
 │   └── Include/
 │       ├── HeikinAshiCalculator.mqh
 │       ├── PatternDetector.mqh
@@ -57,11 +57,11 @@ MQL5/
 │       └── SignalValidator.mqh
 ├── Profiles/
 │   └── Templates/
-│       ├── ShalomEA_Default.set
-│       ├── ShalomEA_Forex.set
-│       └── ShalomEA_Crypto.set
+│       ├── A2SniperTrading_Default.set
+│       ├── A2SniperTrading_Forex.set
+│       └── A2SniperTrading_Crypto.set
 └── Files/
-    └── ShalomEA/
+    └── A2SniperTrading/
         └── Logs/
 ```
 
@@ -69,8 +69,8 @@ MQL5/
 
 #### Fichier Principal
 ```bash
-Copier : ShalomEA.mq5
-Vers   : MQL5\Experts\ShalomEA.mq5
+Copier : A2SniperTrading.mq5
+Vers   : MQL5\Experts\A2SniperTrading.mq5
 ```
 
 #### Fichiers d'Include
@@ -88,7 +88,7 @@ Vers   : MQL5\Profiles\Templates\
 #### Documentation
 ```bash
 Copier : Documentation\*
-Vers   : MQL5\Files\ShalomEA\Documentation\
+Vers   : MQL5\Files\A2SniperTrading\Documentation\
 ```
 
 ---
@@ -100,7 +100,7 @@ Vers   : MQL5\Files\ShalomEA\Documentation\
 2. Ou directement depuis le menu Démarrer
 
 ### 3.2 Compilation de l'EA
-1. **Fichier** → **Ouvrir** → Naviguer vers `MQL5\Experts\ShalomEA.mq5`
+1. **Fichier** → **Ouvrir** → Naviguer vers `MQL5\Experts\A2SniperTrading.mq5`
 2. Appuyer sur **F7** ou **Compiler**
 3. Vérifier l'onglet **Journal** :
    - ✅ **0 erreur(s), 0 avertissement(s)**
@@ -119,7 +119,7 @@ Solution :
 #### Erreur : "Undeclared identifier"
 ```
 Solution :
-1. Vérifier l'ordre des #include dans ShalomEA.mq5
+1. Vérifier l'ordre des #include dans A2SniperTrading.mq5
 2. S'assurer que tous les fichiers .mqh sont présents
 3. Vérifier la syntaxe des déclarations
 ```
@@ -131,11 +131,11 @@ Solution :
 ### 4.1 Redémarrage de MetaTrader 5
 1. Fermer complètement MT5
 2. Redémarrer l'application
-3. Vérifier que ShalomEA apparaît dans le **Navigateur** → **Expert Advisors**
+3. Vérifier que A2SniperTrading apparaît dans le **Navigateur** → **Expert Advisors**
 
 ### 4.2 Test de Base
 1. Ouvrir un graphique **EURUSD M1**
-2. Glisser-déposer **ShalomEA** sur le graphique
+2. Glisser-déposer **A2SniperTrading** sur le graphique
 3. Dans la fenêtre de paramètres :
    - Onglet **Commun** : Cocher **Autoriser le trading automatique**
    - Onglet **Paramètres d'entrée** : Laisser les valeurs par défaut
@@ -145,12 +145,12 @@ Solution :
 1. Vérifier le **smiley vert** en haut à droite du graphique
 2. Consulter l'onglet **Journal** :
 ```
-=== INITIALISATION SHALOM EA ===
+=== INITIALISATION A2SNIPER TRADING ===
 HeikinAshi initialisé pour EURUSD M1
 PatternDetector initialisé - Min Pullback: 2 | Doji Ratio: 0.3
 RiskManager initialisé - Risque: 1.0%
 SignalValidator initialisé - Heures: 08:00-18:00
-=== SHALOM EA INITIALISÉ AVEC SUCCÈS ===
+=== A2SNIPER TRADING INITIALISÉ AVEC SUCCÈS ===
 ```
 
 ---
@@ -163,9 +163,9 @@ SignalValidator initialisé - Heures: 08:00-18:00
 3. Onglet **Paramètres d'entrée**
 4. Bouton **Charger**
 5. Sélectionner le fichier approprié :
-   - `ShalomEA_Forex.set` pour le Forex
-   - `ShalomEA_Crypto.set` pour les Cryptos
-   - `ShalomEA_Default.set` pour usage général
+   - `A2SniperTrading_Forex.set` pour le Forex
+   - `A2SniperTrading_Crypto.set` pour les Cryptos
+   - `A2SniperTrading_Default.set` pour usage général
 
 ### 5.2 Paramètres Recommandés par Marché
 
@@ -213,7 +213,7 @@ Cela affichera un panel de contrôle graphique avec :
 
 ### 6.2 Backtesting (Optionnel)
 1. **Ctrl+R** pour ouvrir le testeur de stratégies
-2. Sélectionner **ShalomEA**
+2. Sélectionner **A2SniperTrading**
 3. Paramètres :
    - **Symbole** : EURUSD
    - **Période** : M1
@@ -283,7 +283,7 @@ Résultats acceptables :
 
 ### Ressources Disponibles
 - **Manuel Utilisateur** : Documentation complète
-- **Fichiers de Log** : MQL5\Files\ShalomEA\Logs\
+- **Fichiers de Log** : MQL5\Files\A2SniperTrading\Logs\
 - **Support Email** : support@yehiortech.com
 
 ### Maintenance Recommandée
@@ -293,6 +293,6 @@ Résultats acceptables :
 
 ---
 
-*Installation réussie ! Votre Shalom EA est maintenant prêt à trader.*
+*Installation réussie ! Votre A2Sniper Trading est maintenant prêt à trader.*
 
 **Copyright 2024 YEHI OR Tech Solutions**
