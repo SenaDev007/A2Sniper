@@ -475,7 +475,7 @@ int CTradeSniperEngine::ScoreVolume()
 
    //--- Volume institutionnel (2.5x la moyenne)
    //--- Utilise la methode disponible
-   double volume_ratio = m_volume_engine->GetVolumeRatio();
+   double volume_ratio = m_volume_engine->GetRelativeVolume();
    if(volume_ratio >= INSTITUTIONAL_VOL_MULT) score += 10;
    else if(volume_ratio >= DEFAULT_VOLUME_MULTIPLIER) score += 5;
 
@@ -759,25 +759,35 @@ bool CTradeSniperEngine::ValidateMicroTiming(ENUM_SIGNAL_TYPE direction)
   }
 
 //+------------------------------------------------------------------+
-//| Valider l'empreinte institutionnelle                             |
+//| Valider l'empreinte institutionnelle v4                           |
+//| FIX v4: Exige OB OU FVG + HTF confluence de preference           |
+//| Un signal sans OB/FVG = entree aveugle = perte probable          |
 //+------------------------------------------------------------------+
 bool CTradeSniperEngine::ValidateInstitutionalFootprint(ENUM_SIGNAL_TYPE direction)
   {
-   //--- Verifier qu'il y a au moins une trace institutionnelle
    bool has_ob = false, has_fvg = false, has_liq_sweep = false;
+   bool has_htf_ob = false;
+   double current_price = SymbolInfoDouble(_Symbol, SYMBOL_BID);
 
+   //--- Verifier OB M15
    if(m_order_blocks != NULL)
      {
       int count = (direction == SIGNAL_BUY) ? m_order_blocks->GetBullishCount() : m_order_blocks->GetBearishCount();
       has_ob = (count > 0);
+
+      //--- v4: Verifier aussi OB HTF (H1/H4) - beaucoup plus puissant
+      ENUM_OB_TYPE ob_type = (direction == SIGNAL_BUY) ? OB_BULLISH : OB_BEARISH;
+      has_htf_ob = m_order_blocks->IsPriceAtHTFOB(current_price, ob_type);
      }
 
+   //--- Verifier FVG
    if(m_fvg_engine != NULL)
      {
       int count = (direction == SIGNAL_BUY) ? m_fvg_engine->GetBullishCount() : m_fvg_engine->GetBearishCount();
       has_fvg = (count > 0);
      }
 
+   //--- Verifier liquidity sweep
    if(m_liquidity_engine != NULL)
      {
       for(int i = 0; i < m_liquidity_engine->GetZoneCount(); i++)
@@ -793,7 +803,32 @@ bool CTradeSniperEngine::ValidateInstitutionalFootprint(ENUM_SIGNAL_TYPE directi
         }
      }
 
-   return (has_ob || has_fvg || has_liq_sweep);
+   //--- v4: Exiger au minimum OB ou FVG (pas juste un sweep)
+   //--- Un signal sans zone institutionnelle = entree aveugle
+   bool has_zone = (has_ob || has_fvg);
+
+   //--- Si on a un OB HTF, c'est un bonus majeur
+   if(has_htf_ob && has_zone)
+      return true;   // Confluence M15 + HTF = tres fort
+
+   //--- Si on a OB + FVG + sweep = confluence maximale
+   if(has_ob && has_fvg && has_liq_sweep)
+      return true;   // Triple confluence
+
+   //--- Si on a seulement une zone + sweep = acceptable
+   if(has_zone && has_liq_sweep)
+      return true;
+
+   //--- Si on a seulement un OB ou FVG (sans sweep) = acceptable mais moins fort
+   if(has_zone)
+      return true;   // Minimum acceptable
+
+   //--- Si on a seulement un sweep sans zone = dangereux
+   //--- Le prix peut continuer dans la direction du sweep
+   if(has_liq_sweep && !has_zone)
+      return false;  // v4: REJET - sweep sans zone = piege
+
+   return false;
   }
 
 //+------------------------------------------------------------------+

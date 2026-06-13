@@ -339,8 +339,9 @@ void OnTick()
      }
 
    //--- 4. Gerer les positions ouvertes (chaque tick)
+   //--- FIX: Utiliser uniquement PositionStateMachine pour eviter les conflits
+   //--- TradeManager est garde pour compatibilite mais ne gere plus activement
    g_position_sm.Update();
-   g_trade_manager.Update();
 
    //--- 5. Protection news
    if(RequireNewsFilter && g_news_filter.ShouldTightenStopLoss())
@@ -394,8 +395,9 @@ bool CheckMultiTimeframeAlignment(ENUM_SIGNAL_TYPE direction)
   }
 
 //+------------------------------------------------------------------+
-//| Tenter d'executer un signal sniper                               |
-//| Pipeline complet: Sniper -> AI Score -> SRE -> SME -> Execution |
+//| Tenter d'executer un signal sniper v4                             |
+//| Pipeline v4: Sniper -> AI Score v4 -> Range Filter -> SRE ->     |
+//| SME -> Session -> OB MTF -> OrderBook -> Correlation -> Risk     |
 //+------------------------------------------------------------------+
 void TryExecuteSniperSignal(ENUM_SIGNAL_TYPE direction)
   {
@@ -403,56 +405,80 @@ void TryExecuteSniperSignal(ENUM_SIGNAL_TYPE direction)
    double spread = SymbolInfoInteger(_Symbol, SYMBOL_SPREAD) * _Point;
    if(spread > MAX_SPREAD_POINTS * _Point) return;
 
-   //--- 2. PHASE SNIPER: Chasser le signal de precision
+   //--- 2. PHASE RANGE FILTER: Rejeter si marche en range profond
+   if(g_ai_scoring.IsMarketRanging())
+     {
+      //--- En range, seul un score tres eleve peut passer
+      Print("A2Sniper Trading: Marche en range - signal rejete (ADX<20)");
+      return;
+     }
+
+   //--- 3. PHASE SNIPER: Chasser le signal de precision
    SSniperSignal sniper = g_sniper_engine.HuntSniperSignal(direction);
    g_last_sniper_score = sniper.sniper_score;
 
    if(!sniper.is_valid)
       return;
 
-   //--- 3. PHASE AI SCORING: Confirmation du score global
-   SAIScore ai_score = g_ai_scoring.CalculateScore(direction);
+   //--- 4. PHASE AI SCORING v4: Confirmation avec scoring negatif + regime
+   SAIScoreV4 ai_score = g_ai_scoring.CalculateScore(direction);
    g_last_score = ai_score.total_score;
    g_last_signal_direction = (int)direction;
 
    if(!ai_score.meets_threshold) return;
    if(!g_ai_scoring.MeetsAllCriteria(direction)) return;
 
-   //--- 4. PHASE SRE: Verification du Strategic Reversal
+   //--- v4: Verifier que le score total est positif (scoring negatif peut rendre negatif)
+   if(ai_score.total_score <= 0)
+     {
+      Print("A2Sniper Trading: Score negatif - signal rejete (", DoubleToString(ai_score.total_score, 1), ")");
+      return;
+     }
+
+   //--- v4: Verifier qu'il y a assez de moteurs confirmants (6/9 minimum)
+   if(ai_score.confirming_engines < 6)
+     {
+      Print("A2Sniper Trading: Pas assez de confirmations (", ai_score.confirming_engines, "/9)");
+      return;
+     }
+
+   //--- 5. PHASE SRE: Verification du Strategic Reversal
    SStrategicReversalSignal sre_signal = g_ai_scoring.GetLastSRESignal();
    if(sre_signal.total_score < MinSREScore) return;
 
-   //--- 5. PHASE SME: Confirmation Smart Money
+   //--- 6. PHASE SME: Confirmation Smart Money
    if(RequireSMEConfirmation && !g_smart_money.HasSmartMoneyConfirmation(direction))
       return;
 
-   //--- 6. PHASE SESSION: Filtre de session
+   //--- 7. PHASE SESSION: Filtre de session v4 (plus strict)
    if(RequireSessionFilter && !g_session_engine.IsOptimalTradingTime())
-      if(ai_score.total_score < 90.0) return;  // Seuil plus eleve hors session
+     {
+      //--- v4: En dehors des sessions optimales, exiger score tres eleve
+      if(ai_score.total_score < 90.0) return;
+      //--- v4: En session asiatique, rejeter sauf score extreme
+      if(ai_score.session_bonus < -10.0 && ai_score.total_score < 95.0) return;
+     }
 
-   //--- 7. PHASE ORDER BOOK: Validation du carnet d'ordres
-   double book_sl = sniper.stop_loss; // SL ajuste par le carnet
+   //--- 8. PHASE ORDER BOOK: Validation du carnet d'ordres
+   double book_sl = sniper.stop_loss;
    if(EnableOrderBook && g_order_book.IsAvailable())
      {
       double atr = g_volatility_engine.GetCurrentATR();
       SOrderBookValidation book_val = g_order_book.ValidateSignal(direction, sniper.entry_price,
                                                                     sniper.stop_loss, atr);
 
-      //--- Mode strict: rejeter si le carnet ne confirme pas
       if(RequireBookConfirmation && !book_val.liquidity_ok)
         {
          Print("A2Sniper Trading: OrderBook REJET - Liquidite insuffisante (", book_val.rejection_reason, ")");
          return;
         }
 
-      //--- Mode strict: rejeter si imbalance extreme contre le signal
       if(RequireBookConfirmation && book_val.confidence_score < 30.0)
         {
          Print("A2Sniper Trading: OrderBook REJET - Confiance trop faible (", DoubleToString(book_val.confidence_score, 1), "/100)");
          return;
         }
 
-      //--- Ajuster le SL base sur les murs d'ordres
       if(UseBookSLAdjust && book_val.wall_sl_adjust > 0 && book_val.wall_sl_adjust != sniper.stop_loss)
         {
          book_sl = book_val.wall_sl_adjust;
@@ -460,14 +486,13 @@ void TryExecuteSniperSignal(ENUM_SIGNAL_TYPE direction)
                " -> SL carnet=", book_sl);
         }
 
-      //--- Log de la validation
       Print("A2Sniper Trading: OrderBook Validation - Confiance=", DoubleToString(book_val.confidence_score, 1),
             "/100 | Imbalance=", g_order_book.GetImbalanceName(),
             " | Liquidite=", book_val.liquidity_ok ? "OK" : "FAIBLE",
             " | Mur=", book_val.wall_supports ? "OUI" : "NON");
      }
 
-   //--- 8. PHASE RISK: Verification du risque adaptatif
+   //--- 9. PHASE RISK: Verification du risque adaptatif
    bool can_trade;
    if(UseAdaptiveRisk)
       can_trade = g_adaptive_risk.CanOpenTrade(direction);
@@ -476,10 +501,13 @@ void TryExecuteSniperSignal(ENUM_SIGNAL_TYPE direction)
 
    if(!can_trade) return;
 
-   //--- 8. Verifier qu'on n'a pas deja une position dans cette direction
+   //--- 10. Verifier qu'on n'a pas deja une position dans cette direction
    if(HasOpenPositionInDirection(direction)) return;
 
-   //--- 9. Calculer le lot adaptatif
+   //--- 11. v4: Filtre de correlation inter-devises
+   if(HasCorrelatedPosition(direction)) return;
+
+   //--- 12. Calculer le lot adaptatif
    double sl_distance_pips = MathAbs(sniper.entry_price - book_sl) / _Point;
    double lot;
    if(UseAdaptiveRisk)
@@ -487,7 +515,7 @@ void TryExecuteSniperSignal(ENUM_SIGNAL_TYPE direction)
    else
       lot = g_risk_manager.CalculateLotSize(sl_distance_pips);
 
-   //--- 10. Verifier la marge
+   //--- 13. Verifier la marge
    bool has_margin;
    if(UseAdaptiveRisk)
       has_margin = g_adaptive_risk.HasEnoughMargin(lot);
@@ -496,22 +524,23 @@ void TryExecuteSniperSignal(ENUM_SIGNAL_TYPE direction)
 
    if(!has_margin) return;
 
-   //--- 11. EXECUTION
+   //--- 14. EXECUTION
    Print("========================================");
-   Print("A2Sniper Trading: SIGNAL SNIPER ", (direction == SIGNAL_BUY) ? "ACHAT" : "VENTE");
+   Print("A2Sniper Trading v4: SIGNAL SNIPER ", (direction == SIGNAL_BUY) ? "ACHAT" : "VENTE");
    Print("  Sniper Score: ", sniper.sniper_score, "/100 (", GetSniperQualityName(sniper.quality), ")");
-   Print("  AI Score: ", ai_score.total_score, "/100");
+   Print("  AI Score v4: ", DoubleToString(ai_score.total_score, 1), "/100 (Conf: ", ai_score.confirming_engines, "/9)");
    Print("  SRE Score: ", sre_signal.total_score, "/100");
    Print("  R:R: ", sniper.risk_reward);
    Print("  Zone: ", GetSniperZoneName(sniper.zone_type));
    Print("  Timing: ", GetSniperTimingName(sniper.timing));
    Print("  Entry Tech: ", GetEntryTechName(sniper.entry_technique));
    Print("  Risk Eff: ", UseAdaptiveRisk ? g_adaptive_risk.GetEffectiveRiskPercent() : g_risk_manager.GetEffectiveRiskPercent(), "%");
+   Print("  Range Penalty: ", DoubleToString(ai_score.range_penalty, 1));
+   Print("  Session Bonus: ", DoubleToString(ai_score.session_bonus, 1));
    if(book_sl != sniper.stop_loss)
       Print("  OrderBook SL: ", sniper.stop_loss, " -> ", book_sl, " (ajuste mur d'ordres)");
    Print("========================================");
 
-   //--- Utiliser les niveaux du sniper (plus precis que SRE)
    int ticket = -1;
    if(direction == SIGNAL_BUY)
       ticket = g_trade_executor.ExecuteBuy(sniper.entry_price, book_sl,
@@ -523,37 +552,30 @@ void TryExecuteSniperSignal(ENUM_SIGNAL_TYPE direction)
    //--- Enregistrer dans les gestionnaires
    if(ticket > 0)
      {
-      //--- Trade Manager classique
-      g_trade_manager.RegisterPosition(ticket, direction, sniper.entry_price,
-                                        book_sl, sniper.tp1, sniper.tp2, sniper.tp3,
-                                        lot, ai_score.total_score);
-
-      //--- Position State Machine (Wall Street)
+      //--- v4: Enregistrer SEULEMENT dans PositionStateMachine (plus dans TradeManager)
       g_position_sm.RegisterPosition(ticket, direction, sniper.entry_price,
                                       book_sl, sniper.tp1, sniper.tp2, sniper.tp3,
                                       lot, ai_score.total_score, sniper.sniper_score);
 
-      //--- Enregistrer dans le Risk Manager
       if(UseAdaptiveRisk)
          g_adaptive_risk.RecordTradeOpened();
       else
          g_risk_manager.RecordTradeOpened();
 
-      //--- Dashboard
       if(EnableDashboard)
          g_dashboard.DrawTradeLevels(sniper.entry_price, book_sl,
                                       sniper.tp1, sniper.tp2, sniper.tp3, direction);
 
-      Print("A2Sniper Trading: Trade sniper execute - Ticket=", ticket, " Lot=", lot,
-            " SniperScore=", sniper.sniper_score);
+      Print("A2Sniper Trading v4: Trade sniper execute - Ticket=", ticket, " Lot=", lot,
+            " SniperScore=", sniper.sniper_score, " AI=", DoubleToString(ai_score.total_score, 1));
 
-      //--- Notifications
-      string notif = StringFormat("A2Sniper Trading %s | Sniper=%d(%s) AI=%.0f SRE=%d R:R=%.1f",
+      string notif = StringFormat("A2Sniper v4 %s | Sniper=%d(%s) AI=%.0f SRE=%d R:R=%.1f Conf=%d/9",
                                    (direction == SIGNAL_BUY) ? "BUY" : "SELL",
                                    sniper.sniper_score, GetSniperQualityName(sniper.quality),
-                                   ai_score.total_score, sre_signal.total_score, sniper.risk_reward);
+                                   ai_score.total_score, sre_signal.total_score, sniper.risk_reward,
+                                   ai_score.confirming_engines);
       SendNotification(notif);
-      Alert("A2Sniper Trading: ", (direction == SIGNAL_BUY) ? "ACHAT" : "VENTE",
+      Alert("A2Sniper Trading v4: ", (direction == SIGNAL_BUY) ? "ACHAT" : "VENTE",
             " Sniper=", sniper.sniper_score);
      }
   }
@@ -641,6 +663,72 @@ bool HasOpenPositionInDirection(ENUM_SIGNAL_TYPE direction)
       if(direction == SIGNAL_BUY && pos_type == POSITION_TYPE_BUY) return true;
       if(direction == SIGNAL_SELL && pos_type == POSITION_TYPE_SELL) return true;
      }
+   return false;
+  }
+
+//+------------------------------------------------------------------+
+//| v4: Filtre de correlation inter-devises                          |
+//| Empeche d'ouvrir EURUSD + GBPUSD en meme direction              |
+//| (paires correlees = double exposition reelle)                    |
+//+------------------------------------------------------------------+
+bool HasCorrelatedPosition(ENUM_SIGNAL_TYPE direction)
+  {
+   string current_symbol = _Symbol;
+   string current_base = SymbolInfoString(current_symbol, SYMBOL_CURRENCY_BASE);
+   string current_profit = SymbolInfoString(current_symbol, SYMBOL_CURRENCY_PROFIT);
+
+   //--- Paires fortement correlees
+   string correlated_pairs[] = {"EURUSD", "GBPUSD", "AUDUSD", "NZDUSD",  // USD quote
+                                 "USDCAD", "USDCHF", "USDJPY",            // USD base
+                                 "EURGBP", "EURCHF", "EURAUD",            // Cross
+                                 "GBPCHF", "GBPAUD", "GBPCAD"};           // Cross
+
+   int corr_count = 0;
+   long pos_type = (direction == SIGNAL_BUY) ? POSITION_TYPE_BUY : POSITION_TYPE_SELL;
+
+   for(int i = PositionsTotal() - 1; i >= 0; i--)
+     {
+      ulong ticket = PositionGetTicket(i);
+      if(ticket <= 0) continue;
+      if(PositionGetInteger(POSITION_MAGIC) != (long)MagicNumber) continue;
+
+      string pos_symbol = PositionGetString(POSITION_SYMBOL);
+      if(pos_symbol == current_symbol) continue; // Meme paire, deja verifie
+
+      long pos_dir = PositionGetInteger(POSITION_TYPE);
+
+      //--- Verifier si la paire est correlee
+      string pos_base = SymbolInfoString(pos_symbol, SYMBOL_CURRENCY_BASE);
+      string pos_profit = SymbolInfoString(pos_symbol, SYMBOL_CURRENCY_PROFIT);
+
+      //--- Meme devise de cotation (ex: EURUSD + GBPUSD)
+      bool same_quote = (current_profit == pos_profit);
+      //--- Meme devise de base (ex: EURUSD + EURGBP)
+      bool same_base = (current_base == pos_base);
+
+      if(same_quote && pos_dir == pos_type)
+        {
+         corr_count++;
+         if(corr_count >= 1)
+           {
+            Print("A2Sniper Trading v4: Position correlee detectee - ", pos_symbol,
+                  " (meme cotation: ", current_profit, ")");
+            return true;
+           }
+        }
+
+      if(same_base && pos_dir == pos_type)
+        {
+         corr_count++;
+         if(corr_count >= 1)
+           {
+            Print("A2Sniper Trading v4: Position correlee detectee - ", pos_symbol,
+                  " (meme base: ", current_base, ")");
+            return true;
+           }
+        }
+     }
+
    return false;
   }
 

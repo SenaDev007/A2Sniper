@@ -321,7 +321,7 @@ struct SStatistics
 //+------------------------------------------------------------------+
 //| Constantes                                                       |
 //+------------------------------------------------------------------+
-#define A2SNIPER_VERSION        "3.1.0"
+#define A2SNIPER_VERSION        "4.0.0"
 #define A2SNIPER_MAGIC          20240101
 
 //--- Scores minimums
@@ -392,11 +392,12 @@ struct SStatistics
 #define MAX_OPEN_POSITIONS      5
 #define MAX_EXPOSURE_PERCENT    10.0
 
-//--- Scores minimums par module AI (FIX: eviter signaux déséquilibrés)
-#define MIN_MODULE_SCORE_SMC    30.0     // SMC doit avoir au moins 30/100
-#define MIN_MODULE_SCORE_LIQ    20.0     // Liquidite doit avoir au moins 20/100
-#define MIN_MODULE_SCORE_VOL    10.0     // Volume doit etre > 0
-#define MIN_ENGINES_CONFIRMING  5        // Au moins 5 moteurs sur 8 doivent confirmer
+//--- Scores minimums par module AI (FIX v4: seuils augmentes pour 80%+ win rate)
+#define MIN_MODULE_SCORE_SMC    35.0     // SMC doit avoir au moins 35/100 (sans double comptage)
+#define MIN_MODULE_SCORE_LIQ    25.0     // Liquidite doit avoir au moins 25/100
+#define MIN_MODULE_SCORE_VOL    0.0      // Volume doit etre POSITIF (pas negatif)
+#define MIN_ENGINES_CONFIRMING  6        // v4: Au moins 6 moteurs sur 9 doivent confirmer
+#define MIN_ADX_FOR_TRADE       20.0     // ADX minimum pour eviter le ranging
 
 //--- Order Book Engine (Carnet d'ordres)
 #define OB_BOOK_WALL_MULTIPLIER 3.0      // Mur = x fois le volume moyen
