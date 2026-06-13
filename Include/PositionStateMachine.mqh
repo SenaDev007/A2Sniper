@@ -8,10 +8,10 @@
 #ifndef A2SNIPER_POSITION_STATE_MACHINE_MQH
 #define A2SNIPER_POSITION_STATE_MACHINE_MQH
 
-#include "CommonTypes.mqh"
-#include "TradeExecutor.mqh"
-#include "VolatilityEngine.mqh"
-#include "MarketStructureEngine.mqh"
+#include <A2Sniper\CommonTypes.mqh>
+#include <A2Sniper\TradeExecutor.mqh>
+#include <A2Sniper\VolatilityEngine.mqh>
+#include <A2Sniper\MarketStructureEngine.mqh>
 
 //+------------------------------------------------------------------+
 //| Enumerations State Machine                                       |

@@ -6,7 +6,7 @@
 #ifndef A2SNIPER_STATS_MQH
 #define A2SNIPER_STATS_MQH
 
-#include "CommonTypes.mqh"
+#include <A2Sniper\CommonTypes.mqh>
 
 //+------------------------------------------------------------------+
 //| Classe CStatisticsDatabase                                       |

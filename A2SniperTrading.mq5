@@ -15,30 +15,30 @@
 //+------------------------------------------------------------------+
 //| Includes - Full Ultimate Architecture                            |
 //+------------------------------------------------------------------+
-#include "Include\CommonTypes.mqh"
-#include "Include\MarketStructureEngine.mqh"
-#include "Include\OrderBlockEngine.mqh"
-#include "Include\FVGEngine.mqh"
-#include "Include\LiquidityEngine.mqh"
-#include "Include\SessionEngine.mqh"
-#include "Include\VolumeEngine.mqh"
-#include "Include\VolatilityEngine.mqh"
-#include "Include\StrategicReversalEngine.mqh"
-#include "Include\SmartMoneyEngine.mqh"
-#include "Include\ICTEngine.mqh"
-#include "Include\AIScoringEngine.mqh"
-#include "Include\RiskManager.mqh"
-#include "Include\AdaptiveRiskEngine.mqh"
-#include "Include\TradeExecutor.mqh"
-#include "Include\TradeManager.mqh"
-#include "Include\PositionStateMachine.mqh"
-#include "Include\TradeSniperEngine.mqh"
-#include "Include\DashboardManager.mqh"
-#include "Include\StatisticsDatabase.mqh"
-#include "Include\NewsFilterEngine.mqh"
-#include "Include\MachineLearningEngine.mqh"
-#include "Include\BacktestIntelligenceEngine.mqh"
-#include "Include\OrderBookEngine.mqh"
+#include <A2Sniper\CommonTypes.mqh>
+#include <A2Sniper\MarketStructureEngine.mqh>
+#include <A2Sniper\OrderBlockEngine.mqh>
+#include <A2Sniper\FVGEngine.mqh>
+#include <A2Sniper\LiquidityEngine.mqh>
+#include <A2Sniper\SessionEngine.mqh>
+#include <A2Sniper\VolumeEngine.mqh>
+#include <A2Sniper\VolatilityEngine.mqh>
+#include <A2Sniper\StrategicReversalEngine.mqh>
+#include <A2Sniper\SmartMoneyEngine.mqh>
+#include <A2Sniper\ICTEngine.mqh>
+#include <A2Sniper\AIScoringEngine.mqh>
+#include <A2Sniper\RiskManager.mqh>
+#include <A2Sniper\AdaptiveRiskEngine.mqh>
+#include <A2Sniper\TradeExecutor.mqh>
+#include <A2Sniper\TradeManager.mqh>
+#include <A2Sniper\PositionStateMachine.mqh>
+#include <A2Sniper\TradeSniperEngine.mqh>
+#include <A2Sniper\DashboardManager.mqh>
+#include <A2Sniper\StatisticsDatabase.mqh>
+#include <A2Sniper\NewsFilterEngine.mqh>
+#include <A2Sniper\MachineLearningEngine.mqh>
+#include <A2Sniper\BacktestIntelligenceEngine.mqh>
+#include <A2Sniper\OrderBookEngine.mqh>
 
 //+------------------------------------------------------------------+
 //| Parametres d'entree                                              |

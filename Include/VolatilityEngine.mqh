@@ -7,7 +7,7 @@
 #ifndef A2SNIPER_VOLATILITY_MQH
 #define A2SNIPER_VOLATILITY_MQH
 
-#include "CommonTypes.mqh"
+#include <A2Sniper\CommonTypes.mqh>
 
 //+------------------------------------------------------------------+
 //| Classe CVolatilityEngine v4                                       |

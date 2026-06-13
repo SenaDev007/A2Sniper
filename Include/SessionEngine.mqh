@@ -7,7 +7,7 @@
 #ifndef A2SNIPER_SESSION_MQH
 #define A2SNIPER_SESSION_MQH
 
-#include "CommonTypes.mqh"
+#include <A2Sniper\CommonTypes.mqh>
 
 //+------------------------------------------------------------------+
 //| Classe CSessionEngine                                            |

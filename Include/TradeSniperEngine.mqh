@@ -7,14 +7,14 @@
 #ifndef A2SNIPER_TRADE_SNIPER_ENGINE_MQH
 #define A2SNIPER_TRADE_SNIPER_ENGINE_MQH
 
-#include "CommonTypes.mqh"
-#include "MarketStructureEngine.mqh"
-#include "OrderBlockEngine.mqh"
-#include "FVGEngine.mqh"
-#include "LiquidityEngine.mqh"
-#include "VolatilityEngine.mqh"
-#include "SessionEngine.mqh"
-#include "VolumeEngine.mqh"
+#include <A2Sniper\CommonTypes.mqh>
+#include <A2Sniper\MarketStructureEngine.mqh>
+#include <A2Sniper\OrderBlockEngine.mqh>
+#include <A2Sniper\FVGEngine.mqh>
+#include <A2Sniper\LiquidityEngine.mqh>
+#include <A2Sniper\VolatilityEngine.mqh>
+#include <A2Sniper\SessionEngine.mqh>
+#include <A2Sniper\VolumeEngine.mqh>
 
 //+------------------------------------------------------------------+
 //| Enumerations Sniper                                              |

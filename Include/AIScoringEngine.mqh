@@ -8,16 +8,16 @@
 #ifndef A2SNIPER_AI_SCORING_MQH
 #define A2SNIPER_AI_SCORING_MQH
 
-#include "CommonTypes.mqh"
-#include "StrategicReversalEngine.mqh"
-#include "SmartMoneyEngine.mqh"
-#include "ICTEngine.mqh"
-#include "OrderBlockEngine.mqh"
-#include "FVGEngine.mqh"
-#include "LiquidityEngine.mqh"
-#include "VolumeEngine.mqh"
-#include "VolatilityEngine.mqh"
-#include "SessionEngine.mqh"
+#include <A2Sniper\CommonTypes.mqh>
+#include <A2Sniper\StrategicReversalEngine.mqh>
+#include <A2Sniper\SmartMoneyEngine.mqh>
+#include <A2Sniper\ICTEngine.mqh>
+#include <A2Sniper\OrderBlockEngine.mqh>
+#include <A2Sniper\FVGEngine.mqh>
+#include <A2Sniper\LiquidityEngine.mqh>
+#include <A2Sniper\VolumeEngine.mqh>
+#include <A2Sniper\VolatilityEngine.mqh>
+#include <A2Sniper\SessionEngine.mqh>
 
 //+------------------------------------------------------------------+
 //| Structure etendue du score AI v4                                  |

@@ -8,8 +8,8 @@
 #define A2SNIPER_TRADE_EXECUTOR_MQH
 
 #include <Trade\Trade.mqh>
-#include "CommonTypes.mqh"
-#include "RiskManager.mqh"
+#include <A2Sniper\CommonTypes.mqh>
+#include <A2Sniper\RiskManager.mqh>
 
 //+------------------------------------------------------------------+
 //| Classe CTradeExecutor                                            |

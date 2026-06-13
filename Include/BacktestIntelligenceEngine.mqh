@@ -7,7 +7,7 @@
 #ifndef A2SNIPER_BACKTEST_INTEL_MQH
 #define A2SNIPER_BACKTEST_INTEL_MQH
 
-#include "CommonTypes.mqh"
+#include <A2Sniper\CommonTypes.mqh>
 
 //+------------------------------------------------------------------+
 //| Résultat d'un setup de trading                                    |

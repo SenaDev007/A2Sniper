@@ -18,10 +18,10 @@ input bool               Test_Patterns = true;              // Tester détection
 input bool               Test_RiskManager = true;           // Tester gestionnaire de risque
 
 //--- Inclusions
-#include "..\Include\HeikinAshiCalculator.mqh"
-#include "..\Include\PatternDetector.mqh"
-#include "..\Include\RiskManager.mqh"
-#include "..\Include\SignalValidator.mqh"
+#include <A2Sniper\HeikinAshiCalculator.mqh>
+#include <A2Sniper\PatternDetector.mqh>
+#include <A2Sniper\RiskManager.mqh>
+#include <A2Sniper\SignalValidator.mqh>
 
 //+------------------------------------------------------------------+
 //| Script program start function                                    |

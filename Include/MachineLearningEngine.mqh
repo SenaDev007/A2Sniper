@@ -7,7 +7,7 @@
 #ifndef A2SNIPER_ML_ENGINE_MQH
 #define A2SNIPER_ML_ENGINE_MQH
 
-#include "CommonTypes.mqh"
+#include <A2Sniper\CommonTypes.mqh>
 
 //+------------------------------------------------------------------+
 //| Structure d'un pattern de signal pour le ML                       |

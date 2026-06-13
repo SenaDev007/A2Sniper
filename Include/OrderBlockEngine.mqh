@@ -7,7 +7,7 @@
 #ifndef A2SNIPER_ORDER_BLOCK_MQH
 #define A2SNIPER_ORDER_BLOCK_MQH
 
-#include "CommonTypes.mqh"
+#include <A2Sniper\CommonTypes.mqh>
 
 //+------------------------------------------------------------------+
 //| Classe COrderBlockEngine v4                                       |

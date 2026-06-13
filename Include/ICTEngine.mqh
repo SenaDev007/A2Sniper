@@ -6,9 +6,9 @@
 #ifndef A2SNIPER_ICT_MQH
 #define A2SNIPER_ICT_MQH
 
-#include "CommonTypes.mqh"
-#include "SessionEngine.mqh"
-#include "MarketStructureEngine.mqh"
+#include <A2Sniper\CommonTypes.mqh>
+#include <A2Sniper\SessionEngine.mqh>
+#include <A2Sniper\MarketStructureEngine.mqh>
 
 //+------------------------------------------------------------------+
 //| Classe CICTEngine                                                |

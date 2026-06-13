@@ -6,11 +6,11 @@
 #ifndef A2SNIPER_SMC_MQH
 #define A2SNIPER_SMC_MQH
 
-#include "CommonTypes.mqh"
-#include "MarketStructureEngine.mqh"
-#include "OrderBlockEngine.mqh"
-#include "FVGEngine.mqh"
-#include "LiquidityEngine.mqh"
+#include <A2Sniper\CommonTypes.mqh>
+#include <A2Sniper\MarketStructureEngine.mqh>
+#include <A2Sniper\OrderBlockEngine.mqh>
+#include <A2Sniper\FVGEngine.mqh>
+#include <A2Sniper\LiquidityEngine.mqh>
 
 //+------------------------------------------------------------------+
 //| Classe CSmartMoneyEngine                                         |

@@ -9,7 +9,7 @@
 #ifndef A2SNIPER_DASHBOARD_MQH
 #define A2SNIPER_DASHBOARD_MQH
 
-#include "CommonTypes.mqh"
+#include <A2Sniper\CommonTypes.mqh>
 
 //+------------------------------------------------------------------+
 //| Constantes de design (compatibles PC + Mobile)                    |

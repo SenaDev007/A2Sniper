@@ -7,7 +7,7 @@
 #ifndef A2SNIPER_VOLUME_MQH
 #define A2SNIPER_VOLUME_MQH
 
-#include "CommonTypes.mqh"
+#include <A2Sniper\CommonTypes.mqh>
 
 //+------------------------------------------------------------------+
 //| Classe CVolumeEngine v4                                           |

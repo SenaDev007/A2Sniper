@@ -7,9 +7,9 @@
 #ifndef A2SNIPER_ADAPTIVE_RISK_ENGINE_MQH
 #define A2SNIPER_ADAPTIVE_RISK_ENGINE_MQH
 
-#include "CommonTypes.mqh"
-#include "VolatilityEngine.mqh"
-#include "SessionEngine.mqh"
+#include <A2Sniper\CommonTypes.mqh>
+#include <A2Sniper\VolatilityEngine.mqh>
+#include <A2Sniper\SessionEngine.mqh>
 
 //+------------------------------------------------------------------+
 //| Enumerations                                                     |

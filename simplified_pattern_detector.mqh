@@ -4,7 +4,7 @@
 //+------------------------------------------------------------------+
 #property copyright "Copyright 2024, YEHI OR Tech Solutions"
 
-#include "HeikinAshiCalculator.mqh"
+#include <A2Sniper\HeikinAshiCalculator.mqh>
 
 //+------------------------------------------------------------------+
 //| Énumérations pour les signaux                                    |

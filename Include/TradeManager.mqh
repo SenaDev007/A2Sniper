@@ -9,9 +9,9 @@
 #define A2SNIPER_TRADE_MANAGER_MQH
 
 #include <Trade\Trade.mqh>
-#include "CommonTypes.mqh"
-#include "TradeExecutor.mqh"
-#include "VolatilityEngine.mqh"
+#include <A2Sniper\CommonTypes.mqh>
+#include <A2Sniper\TradeExecutor.mqh>
+#include <A2Sniper\VolatilityEngine.mqh>
 
 //+------------------------------------------------------------------+
 //| Structure de suivi de position                                   |

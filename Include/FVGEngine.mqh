@@ -6,7 +6,7 @@
 #ifndef A2SNIPER_FVG_ENGINE_MQH
 #define A2SNIPER_FVG_ENGINE_MQH
 
-#include "CommonTypes.mqh"
+#include <A2Sniper\CommonTypes.mqh>
 
 //+------------------------------------------------------------------+
 //| Classe CFVGEngine                                                |

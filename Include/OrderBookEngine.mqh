@@ -7,7 +7,7 @@
 #ifndef A2SNIPER_ORDER_BOOK_ENGINE_MQH
 #define A2SNIPER_ORDER_BOOK_ENGINE_MQH
 
-#include "CommonTypes.mqh"
+#include <A2Sniper\CommonTypes.mqh>
 
 //+------------------------------------------------------------------+
 //| Enumerations Order Book                                          |

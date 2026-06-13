@@ -8,7 +8,7 @@
 #define A2SNIPER_MARKET_STRUCTURE_MQH
 
 #include <Trade\Trade.mqh>
-#include "CommonTypes.mqh"
+#include <A2Sniper\CommonTypes.mqh>
 
 //+------------------------------------------------------------------+
 //| Classe CMarketStructureEngine                                    |
