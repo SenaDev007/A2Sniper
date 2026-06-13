@@ -307,7 +307,7 @@ void CTradeManager::CheckBreakEven(SPositionTracker &pos)
 
       if(should_modify)
         {
-         if(m_executor != NULL && m_executor->ModifyPosition(pos.ticket, be_price, current_tp))
+         if(m_executor != NULL && m_executor.ModifyPosition(pos.ticket, be_price, current_tp))
            {
             pos.be_activated = true;
             pos.last_trail_sl = be_price;
@@ -442,7 +442,7 @@ void CTradeManager::CheckTrailingStop(SPositionTracker &pos)
 
    if(should_modify && m_executor != NULL)
      {
-      if(m_executor->ModifyPosition(pos.ticket, new_sl, current_tp))
+      if(m_executor.ModifyPosition(pos.ticket, new_sl, current_tp))
         {
          pos.last_trail_sl = new_sl;
          Print("A2Sniper TM: Trailing mis a jour - Ticket=", pos.ticket,
@@ -563,7 +563,7 @@ void CTradeManager::CheckPartialClose(SPositionTracker &pos)
 
          if(close_volume >= min_lot && m_executor != NULL)
            {
-            if(m_executor->ClosePartial(pos.ticket, close_volume))
+            if(m_executor.ClosePartial(pos.ticket, close_volume))
               {
                pos.tp1_hit = true;
                pos.current_lot = current_volume - close_volume;  // FIX: Mettre a jour le lot actuel
@@ -591,7 +591,7 @@ void CTradeManager::CheckPartialClose(SPositionTracker &pos)
 
          if(close_volume >= min_lot && m_executor != NULL)
            {
-            if(m_executor->ClosePartial(pos.ticket, close_volume))
+            if(m_executor.ClosePartial(pos.ticket, close_volume))
               {
                pos.tp2_hit = true;
                pos.current_lot = remaining - close_volume;
@@ -626,7 +626,7 @@ void CTradeManager::CheckPartialClose(SPositionTracker &pos)
             double remaining = PositionGetDouble(POSITION_VOLUME);
             if(remaining >= min_lot)
               {
-               m_executor->ClosePartial(pos.ticket, remaining);
+               m_executor.ClosePartial(pos.ticket, remaining);
                Print("A2Sniper TM: TP3 - Fermeture totale (trailing desactive) - Ticket=", pos.ticket);
               }
            }
@@ -641,7 +641,7 @@ double CTradeManager::GetATRValue() const
   {
    //--- Utiliser le moteur de volatilite si disponible
    if(m_volatility != NULL)
-      return m_volatility->GetCurrentATR();
+      return m_volatility.GetCurrentATR();
 
    //--- FIX: Fallback statique - ne pas creer un handle par tick
    //--- Utiliser iATR avec un handle global statique
@@ -706,7 +706,7 @@ bool CTradeManager::Update()
                Print("A2Sniper TM: Timeout position stagnante - Ticket=", m_positions[i].ticket,
                      " Bars=", bars_open, " Profit=", DoubleToString(profit_pips, 1), " pips");
                if(m_executor != NULL)
-                  m_executor->ClosePosition(m_positions[i].ticket);
+                  m_executor.ClosePosition(m_positions[i].ticket);
                m_positions[i].is_valid = false;
                continue;
               }
@@ -730,7 +730,7 @@ bool CTradeManager::Update()
 
                   if(m_executor != NULL)
                     {
-                     m_executor->ModifyPosition(m_positions[i].ticket, be_price, current_tp);
+                     m_executor.ModifyPosition(m_positions[i].ticket, be_price, current_tp);
                      m_positions[i].be_activated = true;
                     }
                  }

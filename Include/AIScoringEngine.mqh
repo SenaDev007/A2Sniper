@@ -250,18 +250,14 @@ double CAIScoringEngine::CalculateSMCScoreNoDoubleCount(ENUM_SIGNAL_TYPE directi
   {
    if(m_smc == NULL) return 0;
 
+   //--- FIX v4.2: Only Premium/Discount - NO liquidity (counted separately at 15%)
+   //--- Liquidity was double-counted: 60% inside SMC AND 15% own category = 27% total
+   //--- Now SMC = 100% PD, Liquidity = separate 15% = no double count
    double score = 0;
-
-   //--- Premium/Discount alignment (40 pts)
-   if(m_smc->IsDirectionAlignedWithPD(direction))
-      score += 40;
-
-   //--- Liquidity sweep dans la direction opposee (60 pts)
-   if(m_le != NULL)
-     {
-      double liq_score = m_le->GetLiquidityScore(direction);
-      score += liq_score * 0.60;
-     }
+   if(m_smc.IsDirectionAlignedWithPD(direction))
+      score = 100.0;   // Full score if aligned
+   else
+      score = 15.0;    // Minimal score if not aligned (still possible but weak)
 
    return MathMin(score, 100.0);
   }
@@ -276,7 +272,7 @@ double CAIScoringEngine::CalculateVolumeScoreWithPenalty(ENUM_SIGNAL_TYPE direct
   {
    if(m_ve == NULL) return 0;
 
-   double relative_vol = m_ve->GetRelativeVolume();
+   double relative_vol = m_ve.GetRelativeVolume();
    double base_score = 0;
 
    //--- Scoring avec penalites negatives
@@ -333,9 +329,9 @@ double CAIScoringEngine::CalculateRegimeScore(ENUM_SIGNAL_TYPE direction) const
   {
    if(m_vole == NULL) return 50.0; // Neutre si pas disponible
 
-   double atr_ratio = m_vole->GetATRRatio();
-   double atr_percentile = m_vole->GetATRPercentile();
-   double atr_momentum = m_vole->GetATRMomentum();
+   double atr_ratio = m_vole.GetATRRatio();
+   double atr_percentile = m_vole.GetATRPercentile();
+   double atr_momentum = m_vole.GetATRMomentum();
    double score = 50.0; // Neutre par defaut
 
    //--- 1. Score basé sur ATR ratio (0-30 pts)
@@ -386,7 +382,7 @@ double CAIScoringEngine::CalculateRegimeScore(ENUM_SIGNAL_TYPE direction) const
    //--- 5. v4: Liquidity void bonus (max +10 pts)
    if(m_le != NULL)
      {
-      double void_score = m_le->GetVoidScore(direction);
+      double void_score = m_le.GetVoidScore(direction);
       score += MathMin(void_score * 0.33, 10.0);  // Poids réduit (3x moins)
      }
 
@@ -404,7 +400,7 @@ double CAIScoringEngine::CalculateSessionQualityBonus() const
    double bonus = 0;
 
    //--- Session quality
-   ENUM_TRADING_SESSION session = m_se->GetActiveSession();
+   ENUM_TRADING_SESSION session = m_se.GetActiveSession();
 
    if(session == SESSION_OVERLAP_LN)
       bonus += 10.0;    // Overlap Londres/NY = meilleur moment
@@ -413,10 +409,18 @@ double CAIScoringEngine::CalculateSessionQualityBonus() const
    else if(session == SESSION_NEWYORK)
       bonus += 3.0;     // Session NY = correct
    else if(session == SESSION_ASIAN)
-      bonus -= 15.0;    // PENALITE: Session asiatique = faux signaux frequents
+     {
+      //--- FIX v4.2: Hard block Asia session except for JPY/AUD/NZD pairs
+      //--- Asia produces many false breakouts and low-quality signals
+      string sym = _Symbol;
+      if(StringFind(sym, "JPY") >= 0 || StringFind(sym, "AUD") >= 0 || StringFind(sym, "NZD") >= 0)
+         bonus -= 5.0;     // Asian currency pairs: slight penalty only
+      else
+         bonus -= 40.0;    // Non-Asian pairs: HARD BLOCK - avoid false signals
+     }
 
    //--- Kill Zone bonus
-   if(m_se->IsKillZone())
+   if(m_se.IsKillZone())
       bonus += 5.0;
 
    return bonus;
@@ -430,31 +434,64 @@ double CAIScoringEngine::CalculateSessionQualityBonus() const
 //+------------------------------------------------------------------+
 double CAIScoringEngine::CalculateRangePenalty() const
   {
-   //--- Si ADX pas disponible, utiliser l'ATR ratio comme fallback
+   double penalty = 0.0;
+   bool is_ranging_adx = false;
+   bool is_ranging_bb = false;
+   bool is_di_crossed = false;
+
+   //--- 1. ADX check
    if(m_adx_value > 0)
      {
       if(m_adx_value < 15)
-         return -20.0;   // Range fort = forte penalite
-      if(m_adx_value < 20)
-         return -10.0;   // Range modere = penalite moderee
-      if(m_adx_value < 25)
-         return -5.0;    // Transition = legere penalite
-      return 0.0;        // Tendance = pas de penalite
+        { is_ranging_adx = true; penalty -= 15.0; }
+      else if(m_adx_value < 20)
+        { is_ranging_adx = true; penalty -= 8.0; }
+      else if(m_adx_value < 25)
+        penalty -= 3.0;
      }
 
-   //--- Fallback: utiliser ATR ratio
-   if(m_vole != NULL)
+   //--- 2. DI directional check - if DI+ and DI- are very close, market is undecided
+   if(m_adx_di_plus > 0 && m_adx_di_minus > 0)
      {
-      double atr_ratio = m_vole->GetATRRatio();
-      if(atr_ratio < 0.5)
-         return -20.0;   // Volatilite tres basse = range probable
-      if(atr_ratio < 0.7)
-         return -10.0;
-      if(atr_ratio < 0.8)
-         return -5.0;
+      double di_diff = MathAbs(m_adx_di_plus - m_adx_di_minus);
+      if(di_diff < 3.0)      // Almost equal = no clear direction
+        { is_di_crossed = true; penalty -= 8.0; }
+      else if(di_diff < 6.0)
+        penalty -= 3.0;
      }
 
-   return 0.0;
+   //--- 3. Bollinger Band width check (FIX v4.2)
+   //--- Narrow BB = ranging market
+   int bb_handle = iBands(_Symbol, PERIOD_CURRENT, 20, 0, 2.0, PRICE_CLOSE);
+   if(bb_handle != INVALID_HANDLE)
+     {
+      double bb_upper[], bb_lower[], bb_middle[];
+      ArraySetAsSeries(bb_upper, true);
+      ArraySetAsSeries(bb_lower, true);
+      ArraySetAsSeries(bb_middle, true);
+      if(CopyBuffer(bb_handle, 1, 0, 1, bb_upper) > 0 &&
+         CopyBuffer(bb_handle, 2, 0, 1, bb_lower) > 0 &&
+         CopyBuffer(bb_handle, 0, 0, 1, bb_middle) > 0)
+        {
+         double bb_width = (bb_upper[0] - bb_lower[0]) / bb_middle[0];
+         if(bb_width < 0.005)       // Very narrow bands = strong range
+           { is_ranging_bb = true; penalty -= 12.0; }
+         else if(bb_width < 0.01)
+           { is_ranging_bb = true; penalty -= 6.0; }
+         else if(bb_width < 0.015)
+           penalty -= 2.0;
+        }
+      IndicatorRelease(bb_handle);
+     }
+
+   //--- Multiple confirmation = extra penalty
+   int ranging_count = (is_ranging_adx ? 1 : 0) + (is_ranging_bb ? 1 : 0) + (is_di_crossed ? 1 : 0);
+   if(ranging_count >= 3)
+      penalty -= 10.0;    // Triple confirmation = very likely ranging
+   else if(ranging_count >= 2)
+      penalty -= 5.0;     // Double confirmation = likely ranging
+
+   return penalty;
   }
 
 //+------------------------------------------------------------------+
@@ -494,14 +531,26 @@ bool CAIScoringEngine::UpdateADX()
 //+------------------------------------------------------------------+
 bool CAIScoringEngine::IsMarketRanging() const
   {
-   if(m_adx_value > 0)
-      return (m_adx_value < 20);
+   //--- FIX v4.2: Multi-factor range detection
+   int ranging_signals = 0;
 
-   //--- Fallback ATR
-   if(m_vole != NULL)
-      return (m_vole->GetATRRatio() < 0.7);
+   //--- 1. ADX below 20
+   if(m_adx_value > 0 && m_adx_value < 20)
+      ranging_signals++;
 
-   return false;
+   //--- 2. DI lines very close (no direction)
+   if(m_adx_di_plus > 0 && m_adx_di_minus > 0)
+     {
+      if(MathAbs(m_adx_di_plus - m_adx_di_minus) < 3.0)
+         ranging_signals++;
+     }
+
+   //--- 3. ATR ratio low
+   if(m_vole != NULL && m_vole.GetATRRatio() < 0.7)
+      ranging_signals++;
+
+   //--- 2+ signals = ranging
+   return (ranging_signals >= 2);
   }
 
 //+------------------------------------------------------------------+
@@ -524,7 +573,7 @@ SAIScoreV4 CAIScoringEngine::CalculateScore(const ENUM_SIGNAL_TYPE direction)
    double current_price = iClose(_Symbol, PERIOD_CURRENT, 0);
 
    //--- 1. Strategic Reversal Engine (28%)
-   m_last_sre_signal = m_sre->AnalyzeSignal(direction);
+   m_last_sre_signal = m_sre.AnalyzeSignal(direction);
    double sre_score = (double)m_last_sre_signal.total_score;
    score.raw_sre = sre_score;
    score.sre_weight = sre_score * m_weight_sre;
@@ -533,25 +582,25 @@ SAIScoreV4 CAIScoringEngine::CalculateScore(const ENUM_SIGNAL_TYPE direction)
    //--- FIX: Le SMC original inclut OB(25%) + FVG(25%) dans son score
    //--- On utilise CalculateSMCScoreNoDoubleCount qui ne compte que PD + Liq
    m_last_smc_score = CalculateSMCScoreNoDoubleCount(direction);
-   m_last_ict_score = m_ict->GetICTScore(direction);
+   m_last_ict_score = m_ict.GetICTScore(direction);
    double combined_smc_ict = (m_last_smc_score * 0.55 + m_last_ict_score * 0.45);
    score.raw_smc = m_last_smc_score;
    score.raw_ict = m_last_ict_score;
    score.smc_ict_weight = combined_smc_ict * m_weight_smc_ict;
 
    //--- 3. Liquidite (15%)
-   m_last_liq_score = m_le->GetLiquidityScore(direction);
+   m_last_liq_score = m_le.GetLiquidityScore(direction);
    score.raw_liq = m_last_liq_score;
    score.liquidity_weight = m_last_liq_score * m_weight_liquidity;
 
    //--- 4. Order Blocks (8%) - compte une seule fois ici
-   m_last_ob_score = m_obe->GetOBScoreAtPrice(current_price,
+   m_last_ob_score = m_obe.GetOBScoreAtPrice(current_price,
                      (direction == SIGNAL_BUY) ? OB_BULLISH : OB_BEARISH);
    score.raw_ob = m_last_ob_score;
    score.ob_weight = m_last_ob_score * m_weight_ob;
 
    //--- 5. FVG (7%) - compte une seule fois ici
-   m_last_fvg_score = m_fvge->GetFVGScoreAtPrice(current_price,
+   m_last_fvg_score = m_fvge.GetFVGScoreAtPrice(current_price,
                       (direction == SIGNAL_BUY) ? FVG_BULLISH : FVG_BEARISH);
    score.raw_fvg = m_last_fvg_score;
    score.fvg_weight = m_last_fvg_score * m_weight_fvg;
@@ -563,7 +612,7 @@ SAIScoreV4 CAIScoringEngine::CalculateScore(const ENUM_SIGNAL_TYPE direction)
    score.volume_weight = m_last_vol_score * m_weight_volume;
 
    //--- 7. Volatilite (5%)
-   m_last_vole_score = m_vole->GetVolatilityScore();
+   m_last_vole_score = m_vole.GetVolatilityScore();
    score.raw_vole = m_last_vole_score;
    score.volatility_weight = m_last_vole_score * m_weight_volatility;
 
@@ -586,16 +635,7 @@ SAIScoreV4 CAIScoringEngine::CalculateScore(const ENUM_SIGNAL_TYPE direction)
    score.range_penalty = CalculateRangePenalty();
    score.total_score += score.range_penalty;
 
-   //--- Verifier coherence direction ADX (bonus supplementaire)
-   if(m_adx_value >= 25)
-     {
-      bool adx_bullish = (m_adx_di_plus > m_adx_di_minus);
-      if((direction == SIGNAL_BUY && adx_bullish) ||
-         (direction == SIGNAL_SELL && !adx_bullish))
-         score.total_score += 5.0;  // ADX confirme la direction
-      else
-         score.total_score -= 10.0; // ADX contredit la direction
-     }
+   //--- FIX v4.2: ADX bonus already handled in CalculateRegimeScore() - removed duplicate
 
    //--- Confiance (basee sur le nombre de moteurs qui confirment)
    //--- FIX: Seuils de confirmation augmentes (60 au lieu de 50)

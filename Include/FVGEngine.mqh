@@ -36,6 +36,7 @@ private:
    double            GetATRValue(const int shift);
    void              UpdateFVGState(SFVG &fvg, const double current_price);
    void              CleanupOldFVGs();
+   bool              DetectFVGOnTF(ENUM_TIMEFRAMES tf);  // FIX v4.2: multi-TF FVG
 
 public:
    //--- Constructeur / Destructeur
@@ -346,6 +347,75 @@ void CFVGEngine::CleanupOldFVGs()
   }
 
 //+------------------------------------------------------------------+
+//| Detecter les FVG sur un timeframe specifique (v4.2 multi-TF)     |
+//+------------------------------------------------------------------+
+bool CFVGEngine::DetectFVGOnTF(ENUM_TIMEFRAMES tf)
+  {
+   if(tf == PERIOD_CURRENT) return false;  // Handled by normal Update
+
+   int bars = iBars(_Symbol, tf);
+   if(bars < 10) return false;
+
+   int start_bar = 2;
+   int end_bar = MathMin(m_lookback, bars - 2);
+
+   for(int i = start_bar; i < end_bar; i++)
+     {
+      int bar_a = i + 1;
+      int bar_c = i - 1;
+
+      //--- Detect bullish FVG on this TF
+      double high_a = iHigh(_Symbol, tf, bar_a);
+      double low_c  = iLow(_Symbol, tf, bar_c);
+      if(low_c > high_a)
+        {
+         double gap_size = (low_c - high_a) / _Point;
+         if(gap_size >= 1.0)
+           {
+            SFVG fvg;
+            fvg.high = low_c;
+            fvg.low = high_a;
+            fvg.time = iTime(_Symbol, tf, i);
+            fvg.bar_index = -((int)tf * 1000 + i);  // Negative = different TF
+            fvg.type = FVG_BULLISH;
+            fvg.size = gap_size;
+            fvg.is_filled = false;
+            fvg.is_valid = true;
+            fvg.classification = FVG_CLASS_INSTITUTIONAL;  // HTF FVGs are stronger
+            m_bullish_count++;
+            ArrayResize(m_bullish_fvgs, m_bullish_count);
+            m_bullish_fvgs[m_bullish_count - 1] = fvg;
+           }
+        }
+
+      //--- Detect bearish FVG on this TF
+      double low_a  = iLow(_Symbol, tf, bar_a);
+      double high_c = iHigh(_Symbol, tf, bar_c);
+      if(high_c < low_a)
+        {
+         double gap_size = (low_a - high_c) / _Point;
+         if(gap_size >= 1.0)
+           {
+            SFVG fvg;
+            fvg.high = low_a;
+            fvg.low = high_c;
+            fvg.time = iTime(_Symbol, tf, i);
+            fvg.bar_index = -((int)tf * 1000 + i);  // Negative = different TF
+            fvg.type = FVG_BEARISH;
+            fvg.size = gap_size;
+            fvg.is_filled = false;
+            fvg.is_valid = true;
+            fvg.classification = FVG_CLASS_INSTITUTIONAL;
+            m_bearish_count++;
+            ArrayResize(m_bearish_fvgs, m_bearish_count);
+            m_bearish_fvgs[m_bearish_count - 1] = fvg;
+           }
+        }
+     }
+   return true;
+  }
+
+//+------------------------------------------------------------------+
 //| Mise à jour principale                                          |
 //+------------------------------------------------------------------+
 bool CFVGEngine::Update()
@@ -391,6 +461,14 @@ bool CFVGEngine::Update()
      }
 
    CleanupOldFVGs();
+
+   //--- FIX v4.2: Multi-timeframe FVG detection (H1 + H4)
+   if(PERIOD_CURRENT == PERIOD_M15 || PERIOD_CURRENT == PERIOD_M30)
+     {
+      DetectFVGOnTF(PERIOD_H1);
+      DetectFVGOnTF(PERIOD_H4);
+     }
+
    return true;
   }
 

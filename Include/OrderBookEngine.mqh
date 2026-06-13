@@ -252,15 +252,9 @@ bool COrderBookEngine::Initialize(string symbol, double wall_multiplier,
    m_min_liquidity_ratio = min_liquidity_ratio;
    m_max_levels = max_levels;
 
-   //--- Verifier si le MarketBook est supporte
-   if(!SymbolInfoInteger(m_symbol, SYMBOL_BOOK_DEPTH))
-     {
-      Print("A2Sniper Trading: OrderBook - Profondeur non disponible pour ", m_symbol);
-      m_state = ORDERBOOK_INACTIVE;
-      m_enabled = false;
-      // Ne pas echouer - graceful degradation
-      return true;
-     }
+   //--- FIX: SYMBOL_BOOK_DEPTH n'existe pas en MQL5
+   //--- On essaie directement de souscrire au MarketBook
+   //--- Si echec, mode degrade active
 
    //--- Souscrire au carnet d'ordres
    if(SubscribeToBook())
@@ -315,9 +309,7 @@ void COrderBookEngine::SetEnabled(bool enabled)
 //+------------------------------------------------------------------+
 bool COrderBookEngine::SubscribeToBook()
   {
-   if(!SymbolInfoInteger(m_symbol, SYMBOL_BOOK_DEPTH))
-      return false;
-
+   //--- FIX: SYMBOL_BOOK_DEPTH n'existe pas en MQL5 - essayer MarketBookAdd directement
    if(!MarketBookAdd(m_symbol))
      {
       Print("A2Sniper Trading: OrderBook - Erreur souscription MarketBookAdd");

@@ -293,7 +293,7 @@ int CTradeExecutor::ExecuteWithRetry(bool is_buy, double lot, double price, doub
 //+------------------------------------------------------------------+
 //| Executer un achat                                                |
 //| FIX: TP1 utilise pour l'ordre initial. TP2/TP3 seront geres     |
-//| par le TradeManager via ModifyPosition quand les niveaux seront  |
+//| par PositionStateMachine via ModifyPosition quand les niveaux seront  |
 //| atteints. Le MT5 ne supporte qu'un seul TP par position.         |
 //+------------------------------------------------------------------+
 int CTradeExecutor::ExecuteBuy(double entry_price, double sl, double tp1, double tp2, double tp3, double lot)
@@ -311,14 +311,14 @@ int CTradeExecutor::ExecuteBuy(double entry_price, double sl, double tp1, double
      }
 
    //--- Verifier le risque
-   if(m_risk_manager != NULL && !m_risk_manager->CanOpenTrade(SIGNAL_BUY))
+   if(m_risk_manager != NULL && !m_risk_manager.CanOpenTrade(SIGNAL_BUY))
      {
       Print("A2Sniper TE: Trade refuse par Risk Manager");
       return -1;
      }
 
    //--- Verifier la marge disponible (FIX)
-   if(m_risk_manager != NULL && !m_risk_manager->HasEnoughMargin(lot))
+   if(m_risk_manager != NULL && !m_risk_manager.HasEnoughMargin(lot))
      {
       Print("A2Sniper TE: Marge insuffisante pour lot=", lot);
       m_total_errors++;
@@ -329,7 +329,7 @@ int CTradeExecutor::ExecuteBuy(double entry_price, double sl, double tp1, double
    if(lot <= 0 && m_risk_manager != NULL)
      {
       double sl_pips = MathAbs(price - sl_copy) / _Point;
-      lot = m_risk_manager->CalculateLotSize(sl_pips);
+      lot = m_risk_manager.CalculateLotSize(sl_pips);
      }
 
    if(lot <= 0)
@@ -354,7 +354,7 @@ int CTradeExecutor::ExecuteBuy(double entry_price, double sl, double tp1, double
 
 //+------------------------------------------------------------------+
 //| Executer une vente                                               |
-//| FIX: Meme logique que BUY - TP2/TP3 geres par TradeManager      |
+//| FIX: Meme logique que BUY - TP2/TP3 geres par PositionStateMachine      |
 //+------------------------------------------------------------------+
 int CTradeExecutor::ExecuteSell(double entry_price, double sl, double tp1, double tp2, double tp3, double lot)
   {
@@ -370,14 +370,14 @@ int CTradeExecutor::ExecuteSell(double entry_price, double sl, double tp1, doubl
       return -1;
      }
 
-   if(m_risk_manager != NULL && !m_risk_manager->CanOpenTrade(SIGNAL_SELL))
+   if(m_risk_manager != NULL && !m_risk_manager.CanOpenTrade(SIGNAL_SELL))
      {
       Print("A2Sniper TE: Trade refuse par Risk Manager");
       return -1;
      }
 
    //--- Verifier la marge disponible (FIX)
-   if(m_risk_manager != NULL && !m_risk_manager->HasEnoughMargin(lot))
+   if(m_risk_manager != NULL && !m_risk_manager.HasEnoughMargin(lot))
      {
       Print("A2Sniper TE: Marge insuffisante pour lot=", lot);
       m_total_errors++;
@@ -387,7 +387,7 @@ int CTradeExecutor::ExecuteSell(double entry_price, double sl, double tp1, doubl
    if(lot <= 0 && m_risk_manager != NULL)
      {
       double sl_pips = MathAbs(price - sl_copy) / _Point;
-      lot = m_risk_manager->CalculateLotSize(sl_pips);
+      lot = m_risk_manager.CalculateLotSize(sl_pips);
      }
 
    if(lot <= 0)

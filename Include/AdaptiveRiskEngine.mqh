@@ -221,12 +221,39 @@ bool CAdaptiveRiskEngine::Initialize(double base_risk, double daily_dd, double w
                                        int max_daily_trades, ulong magic)
   {
    m_base_risk_pct = (base_risk > 0 && base_risk <= 5.0) ? base_risk : DEFAULT_RISK_PERCENT;
+
+   //--- FIX v4.2: Adaptive risk for small accounts (200-500 USD)
+   double equity = AccountInfoDouble(ACCOUNT_EQUITY);
+   if(equity > 0 && equity < 500.0)
+     {
+      //--- Scale down risk proportionally for small accounts
+      //--- 200 USD -> 0.4% max, 300 USD -> 0.6%, 500 USD -> 1.0%
+      double adaptive_risk = MathMax(0.3, (equity / 500.0) * m_base_risk_pct);
+      m_base_risk_pct = MathMin(m_base_risk_pct, adaptive_risk);
+      Print("A2Sniper ARE: Small account detected (", DoubleToString(equity, 0),
+            " USD) - Risk adjusted to ", DoubleToString(m_base_risk_pct, 1), "%");
+     }
+
    m_max_daily_dd = (daily_dd > 0 && daily_dd <= 20.0) ? daily_dd : DEFAULT_DAILY_DD;
    m_max_weekly_dd = (weekly_dd > daily_dd && weekly_dd <= 30.0) ? weekly_dd : DEFAULT_WEEKLY_DD;
    m_max_monthly_dd = (monthly_dd > weekly_dd && monthly_dd <= 50.0) ? monthly_dd : DEFAULT_MONTHLY_DD;
    m_max_positions = (max_positions > 0) ? max_positions : MAX_OPEN_POSITIONS;
    m_max_daily_trades = (max_daily_trades > 0) ? max_daily_trades : MAX_DAILY_TRADES;
    m_magic_number = (magic > 0) ? magic : A2SNIPER_MAGIC;
+
+   //--- FIX v4.2: Limit positions for small accounts
+   if(equity > 0 && equity < 300.0)
+     {
+      m_max_positions = MathMin(m_max_positions, 2);    // Max 2 positions for <300 USD
+      m_max_daily_trades = MathMin(m_max_daily_trades, 3); // Max 3 trades/day for <300 USD
+      Print("A2Sniper ARE: Small account limits - MaxPos=", m_max_positions,
+            " MaxTrades=", m_max_daily_trades);
+     }
+   else if(equity > 0 && equity < 500.0)
+     {
+      m_max_positions = MathMin(m_max_positions, 3);    // Max 3 positions for <500 USD
+      m_max_daily_trades = MathMin(m_max_daily_trades, 4); // Max 4 trades/day for <500 USD
+     }
 
    double init_equity = AccountInfoDouble(ACCOUNT_EQUITY);
    if(init_equity <= 0) init_equity = AccountInfoDouble(ACCOUNT_BALANCE);
@@ -307,7 +334,7 @@ double CAdaptiveRiskEngine::CalculateVolatilityAdjustment() const
 
    double vol_pct = 0;
    double current_price = SymbolInfoDouble(_Symbol, SYMBOL_BID);
-   double atr = m_volatility->GetCurrentATR();
+   double atr = m_volatility.GetCurrentATR();
 
    if(current_price > 0 && atr > 0)
       vol_pct = (atr / current_price) * 100.0;
@@ -328,9 +355,9 @@ double CAdaptiveRiskEngine::CalculateSessionAdjustment() const
   {
    if(m_session == NULL) return 0.85;
 
-   if(m_session->IsKillZoneActive()) return 1.0;
+   if(m_session.IsKillZone()) return 1.0;
 
-   ENUM_TRADING_SESSION session = m_session->GetActiveSession();
+   ENUM_TRADING_SESSION session = m_session.GetActiveSession();
    if(session == SESSION_OVERLAP_LN) return 1.0;
    if(session == SESSION_LONDON) return 0.95;
    if(session == SESSION_NEWYORK) return 0.90;
@@ -368,7 +395,7 @@ SMarketRegime CAdaptiveRiskEngine::DetectMarketRegime() const
    //--- Analyser la structure des bougies recentes
    double atr = 0;
    if(m_volatility != NULL)
-      atr = m_volatility->GetCurrentATR();
+      atr = m_volatility.GetCurrentATR();
 
    double current_price = SymbolInfoDouble(_Symbol, SYMBOL_BID);
    if(current_price <= 0) return regime;
@@ -702,7 +729,12 @@ bool CAdaptiveRiskEngine::HasEnoughMargin(double lot) const
    if(!OrderCalcMargin(ORDER_TYPE_BUY, _Symbol, lot, SymbolInfoDouble(_Symbol, SYMBOL_ASK), margin_required))
       return false;
 
-   return (free_margin >= margin_required * 1.5);
+   //--- FIX v4.2: Lower margin buffer for small accounts (120% instead of 150%)
+   //--- 200 USD accounts need less buffer to be able to trade at all
+   double equity = AccountInfoDouble(ACCOUNT_EQUITY);
+   double margin_buffer = (equity > 0 && equity < 500.0) ? 1.2 : 1.5;
+
+   return (free_margin >= margin_required * margin_buffer);
   }
 
 //+------------------------------------------------------------------+
@@ -776,7 +808,15 @@ double CAdaptiveRiskEngine::GetCurrentExposure() const
      {
       ulong ticket = PositionGetTicket(i);
       if(ticket > 0)
-         total_margin += PositionGetDouble(POSITION_MARGIN);
+        {
+         //--- FIX: Calculer la marge via OrderCalcMargin (POSITION_MARGIN n'existe pas en MQL5)
+         double margin = 0;
+         string sym = PositionGetString(POSITION_SYMBOL);
+         double vol = PositionGetDouble(POSITION_VOLUME);
+         double price = PositionGetDouble(POSITION_PRICE_OPEN);
+         if(OrderCalcMargin(ORDER_TYPE_BUY, sym, vol, price, margin))
+            total_margin += margin;
+        }
      }
 
    return (total_margin / balance) * 100.0;

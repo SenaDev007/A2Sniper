@@ -1,8 +1,8 @@
 //+------------------------------------------------------------------+
 //| PositionStateMachine.mqh - State Machine Professionnelle          |
 //| A2Sniper Ultimate v4.0 - Wall Street Level                       |
-//| Position lifecycle: SCANNING -> SNIPING -> ENTERED -> MANAGING   |
-//| -> SCALING -> EXITING -> CLOSED                                   |
+//| Position lifecycle: SCANNING . SNIPING . ENTERED . MANAGING   |
+//| . SCALING . EXITING . CLOSED                                   |
 //| Manages each position like a senior trader with precise states    |
 //+------------------------------------------------------------------+
 #ifndef A2SNIPER_POSITION_STATE_MACHINE_MQH
@@ -290,7 +290,7 @@ void CPositionStateMachine::TransitionToState(SManagedPosition &pos, ENUM_POSITI
          (old_state == STATE_MANAGING) ? "MANAGING" :
          (old_state == STATE_SCALING) ? "SCALING" :
          (old_state == STATE_EXITING) ? "EXITING" : "CLOSED",
-         " -> ",
+         " . ",
          (new_state == STATE_SCANNING) ? "SCANNING" :
          (new_state == STATE_SNIPING) ? "SNIPING" :
          (new_state == STATE_ENTERED) ? "ENTERED" :
@@ -342,7 +342,7 @@ double CPositionStateMachine::CalculateStructuralSL(ENUM_SIGNAL_TYPE direction) 
 
    double atr = GetATRValue();
    int digits = (int)SymbolInfoInteger(_Symbol, SYMBOL_DIGITS);
-   SMarketStructure m15 = m_market_structure->GetStructure(PERIOD_M15);
+   SMarketStructure m15 = m_market_structure.GetStructure(PERIOD_M15);
 
    if(direction == SIGNAL_BUY && m15.last_swing_low > 0)
      {
@@ -364,7 +364,7 @@ double CPositionStateMachine::CalculateStructuralSL(ENUM_SIGNAL_TYPE direction) 
 double CPositionStateMachine::GetATRValue() const
   {
    if(m_volatility != NULL)
-      return m_volatility->GetCurrentATR();
+      return m_volatility.GetCurrentATR();
 
    static int atr_handle = INVALID_HANDLE;
    if(atr_handle == INVALID_HANDLE)
@@ -451,7 +451,7 @@ ENUM_MANAGEMENT_ACTION CPositionStateMachine::DetermineAction(SManagedPosition &
    //--- 8. Force close si structure cassee contre nous
    if(m_market_structure != NULL)
      {
-      SMarketStructure m15 = m_market_structure->GetStructure(PERIOD_M15);
+      SMarketStructure m15 = m_market_structure.GetStructure(PERIOD_M15);
       if(pos.direction == SIGNAL_BUY && m15.last_event == STRUCTURE_CHOCH_BEARISH && current_r < 0.5)
          return ACTION_FORCE_CLOSE;
       if(pos.direction == SIGNAL_SELL && m15.last_event == STRUCTURE_CHOCH_BULLISH && current_r < 0.5)
@@ -505,7 +505,7 @@ bool CPositionStateMachine::ExecuteAction(SManagedPosition &pos, ENUM_MANAGEMENT
 
          if(should_modify)
            {
-            if(m_executor->ModifyPosition(pos.ticket, be_price, current_tp))
+            if(m_executor.ModifyPosition(pos.ticket, be_price, current_tp))
               {
                pos.be_activated = true;
                pos.current_sl = be_price;
@@ -548,7 +548,7 @@ bool CPositionStateMachine::ExecuteAction(SManagedPosition &pos, ENUM_MANAGEMENT
 
          if(should_modify)
            {
-            if(m_executor->ModifyPosition(pos.ticket, new_sl, current_tp))
+            if(m_executor.ModifyPosition(pos.ticket, new_sl, current_tp))
               {
                pos.trailing_active = true;
                pos.current_sl = new_sl;
@@ -566,7 +566,7 @@ bool CPositionStateMachine::ExecuteAction(SManagedPosition &pos, ENUM_MANAGEMENT
          double close_volume = MathFloor(current_volume * PARTIAL_TP1_PCT / 100.0 / lot_step) * lot_step;
          if(close_volume >= min_lot)
            {
-            if(m_executor->ClosePartial(pos.ticket, close_volume))
+            if(m_executor.ClosePartial(pos.ticket, close_volume))
               {
                pos.tp1_hit = true;
                pos.current_lot = current_volume - close_volume;
@@ -585,7 +585,7 @@ bool CPositionStateMachine::ExecuteAction(SManagedPosition &pos, ENUM_MANAGEMENT
          double close_volume = MathFloor(remaining * PARTIAL_TP2_PCT / 100.0 / lot_step) * lot_step;
          if(close_volume >= min_lot)
            {
-            if(m_executor->ClosePartial(pos.ticket, close_volume))
+            if(m_executor.ClosePartial(pos.ticket, close_volume))
               {
                pos.tp2_hit = true;
                pos.current_lot = remaining - close_volume;
@@ -602,7 +602,7 @@ bool CPositionStateMachine::ExecuteAction(SManagedPosition &pos, ENUM_MANAGEMENT
          double remaining = PositionGetDouble(POSITION_VOLUME);
          if(remaining >= min_lot)
            {
-            if(m_executor->ClosePartial(pos.ticket, remaining))
+            if(m_executor.ClosePartial(pos.ticket, remaining))
               {
                pos.tp3_hit = true;
                m_partial_close_count++;
@@ -624,7 +624,7 @@ bool CPositionStateMachine::ExecuteAction(SManagedPosition &pos, ENUM_MANAGEMENT
 
             if(should_modify)
               {
-               if(m_executor->ModifyPosition(pos.ticket, structural_sl, current_tp))
+               if(m_executor.ModifyPosition(pos.ticket, structural_sl, current_tp))
                  {
                   pos.current_sl = structural_sl;
                   pos.last_trail_sl = structural_sl;
@@ -639,7 +639,7 @@ bool CPositionStateMachine::ExecuteAction(SManagedPosition &pos, ENUM_MANAGEMENT
 
       case ACTION_FORCE_CLOSE:
         {
-         if(m_executor->ClosePosition(pos.ticket))
+         if(m_executor.ClosePosition(pos.ticket))
            {
             pos.is_valid = false;
             pos.exit_reason = EXIT_STRUCTURE_BREAK;
@@ -688,7 +688,7 @@ void CPositionStateMachine::ManageEnteredState(SManagedPosition &pos)
          else
             be_price = NormalizeDouble(pos.entry_price - offset, digits);
 
-         if(m_executor->ModifyPosition(pos.ticket, be_price, current_tp))
+         if(m_executor.ModifyPosition(pos.ticket, be_price, current_tp))
            {
             pos.be_activated = true;
             pos.current_sl = be_price;
@@ -770,7 +770,7 @@ void CPositionStateMachine::ManageExitingState(SManagedPosition &pos)
 
          if(should_modify && m_executor != NULL)
            {
-            if(m_executor->ModifyPosition(pos.ticket, new_sl, current_tp))
+            if(m_executor.ModifyPosition(pos.ticket, new_sl, current_tp))
               {
                pos.current_sl = new_sl;
                pos.last_trail_sl = new_sl;

@@ -148,6 +148,19 @@ bool CRiskManager::Initialize(double risk_pct, double daily_dd, double weekly_dd
                                 double monthly_dd, int max_positions, ulong magic)
   {
    m_risk_percent = (risk_pct > 0 && risk_pct <= 5.0) ? risk_pct : DEFAULT_RISK_PERCENT;
+
+   //--- FIX v4.2: Adaptive risk for small accounts (200-500 USD)
+   double equity = AccountInfoDouble(ACCOUNT_EQUITY);
+   if(equity > 0 && equity < 500.0)
+     {
+      //--- Scale down risk proportionally for small accounts
+      //--- 200 USD -> 0.5% max, 300 USD -> 0.7%, 500 USD -> 1.0%
+      double adaptive_risk = MathMax(0.3, (equity / 500.0) * m_risk_percent);
+      m_risk_percent = MathMin(m_risk_percent, adaptive_risk);
+      Print("A2Sniper RM: Small account detected (", DoubleToString(equity, 0),
+            " USD) - Risk adjusted to ", DoubleToString(m_risk_percent, 1), "%");
+     }
+
    m_max_daily_dd = (daily_dd > 0 && daily_dd <= 20.0) ? daily_dd : DEFAULT_DAILY_DD;
    m_max_weekly_dd = (weekly_dd > daily_dd && weekly_dd <= 30.0) ? weekly_dd : DEFAULT_WEEKLY_DD;
    m_max_monthly_dd = (monthly_dd > weekly_dd && monthly_dd <= 50.0) ? monthly_dd : DEFAULT_MONTHLY_DD;
@@ -370,9 +383,13 @@ double CRiskManager::GetCurrentExposure() const
       ulong ticket = PositionGetTicket(i);
       if(ticket > 0)
         {
-         //--- FIX: Utiliser la marge initiale au lieu de volume * prix
-         double margin = PositionGetDouble(POSITION_MARGIN);
-         total_margin += margin;
+         //--- FIX: Calculer la marge via OrderCalcMargin (POSITION_MARGIN n'existe pas en MQL5)
+         double margin = 0;
+         string sym = PositionGetString(POSITION_SYMBOL);
+         double vol = PositionGetDouble(POSITION_VOLUME);
+         double price = PositionGetDouble(POSITION_PRICE_OPEN);
+         if(OrderCalcMargin(ORDER_TYPE_BUY, sym, vol, price, margin))
+            total_margin += margin;
         }
      }
 
@@ -478,8 +495,12 @@ bool CRiskManager::HasEnoughMargin(double lot) const
       return false;
      }
 
-   //--- Il faut au moins 150% de la marge necessaire (securite)
-   return (free_margin >= margin_required * 1.5);
+   //--- FIX v4.2: Lower margin buffer for small accounts (120% instead of 150%)
+   //--- 200 USD accounts need less buffer to be able to trade at all
+   double equity = AccountInfoDouble(ACCOUNT_EQUITY);
+   double margin_buffer = (equity > 0 && equity < 500.0) ? 1.2 : 1.5;
+
+   return (free_margin >= margin_required * margin_buffer);
   }
 
 //+------------------------------------------------------------------+

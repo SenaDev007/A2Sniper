@@ -30,7 +30,6 @@
 #include <A2Sniper\RiskManager.mqh>
 #include <A2Sniper\AdaptiveRiskEngine.mqh>
 #include <A2Sniper\TradeExecutor.mqh>
-#include <A2Sniper\TradeManager.mqh>
 #include <A2Sniper\PositionStateMachine.mqh>
 #include <A2Sniper\TradeSniperEngine.mqh>
 #include <A2Sniper\DashboardManager.mqh>
@@ -124,7 +123,6 @@ CAdaptiveRiskEngine     g_adaptive_risk;         // Risk Engine Adaptatif (Wall 
 
 //--- Execution et gestion
 CTradeExecutor          g_trade_executor;
-CTradeManager           g_trade_manager;          // Trade Manager classique
 CPositionStateMachine   g_position_sm;            // Position State Machine (Wall Street)
 
 //--- Trade Sniper
@@ -202,10 +200,7 @@ int OnInit()
    if(!g_trade_executor.Initialize(&g_risk_manager, MagicNumber))
      { Print("A2Sniper Trading: ERREUR - Trade Executor"); return INIT_FAILED; }
 
-   //--- 5. Trade Manager classique
-   if(!g_trade_manager.Initialize(&g_trade_executor, &g_volatility_engine,
-                                    EnableBreakEven, EnableTrailingStop, EnablePartialClose, TrailingMode))
-     { Print("A2Sniper Trading: ERREUR - Trade Manager"); return INIT_FAILED; }
+   //--- FIX v4.2: Trade Manager removed - PSM handles all trade management
 
    //--- 6. Position State Machine (Wall Street)
    if(!g_position_sm.Initialize(&g_trade_executor, &g_volatility_engine, &g_market_structure,
@@ -266,7 +261,6 @@ void OnDeinit(const int reason)
    g_dashboard.Deinitialize();
    g_sniper_engine.Deinitialize();
    g_position_sm.Deinitialize();
-   g_trade_manager.Deinitialize();
    g_trade_executor.Deinitialize();
    g_adaptive_risk.Deinitialize();
    g_ai_scoring.Deinitialize();
@@ -341,8 +335,6 @@ void OnTick()
      }
 
    //--- 4. Gerer les positions ouvertes (chaque tick)
-   //--- FIX: Utiliser uniquement PositionStateMachine pour eviter les conflits
-   //--- TradeManager est garde pour compatibilite mais ne gere plus activement
    g_position_sm.Update();
 
    //--- 5. Protection news
@@ -398,8 +390,8 @@ bool CheckMultiTimeframeAlignment(ENUM_SIGNAL_TYPE direction)
 
 //+------------------------------------------------------------------+
 //| Tenter d'executer un signal sniper v4                             |
-//| Pipeline v4: Sniper -> AI Score v4 -> Range Filter -> SRE ->     |
-//| SME -> Session -> OB MTF -> OrderBook -> Correlation -> Risk     |
+//| Pipeline v4: Sniper . AI Score v4 . Range Filter . SRE .     |
+//| SME . Session . OB MTF . OrderBook . Correlation . Risk     |
 //+------------------------------------------------------------------+
 void TryExecuteSniperSignal(ENUM_SIGNAL_TYPE direction)
   {
@@ -485,7 +477,7 @@ void TryExecuteSniperSignal(ENUM_SIGNAL_TYPE direction)
         {
          book_sl = book_val.wall_sl_adjust;
          Print("A2Sniper Trading: OrderBook SL ajuste - SL original=", sniper.stop_loss,
-               " -> SL carnet=", book_sl);
+               " . SL carnet=", book_sl);
         }
 
       Print("A2Sniper Trading: OrderBook Validation - Confiance=", DoubleToString(book_val.confidence_score, 1),
@@ -540,7 +532,7 @@ void TryExecuteSniperSignal(ENUM_SIGNAL_TYPE direction)
    Print("  Range Penalty: ", DoubleToString(ai_score.range_penalty, 1));
    Print("  Session Bonus: ", DoubleToString(ai_score.session_bonus, 1));
    if(book_sl != sniper.stop_loss)
-      Print("  OrderBook SL: ", sniper.stop_loss, " -> ", book_sl, " (ajuste mur d'ordres)");
+      Print("  OrderBook SL: ", sniper.stop_loss, " . ", book_sl, " (ajuste mur d'ordres)");
    Print("========================================");
 
    int ticket = -1;
@@ -554,7 +546,7 @@ void TryExecuteSniperSignal(ENUM_SIGNAL_TYPE direction)
    //--- Enregistrer dans les gestionnaires
    if(ticket > 0)
      {
-      //--- v4: Enregistrer SEULEMENT dans PositionStateMachine (plus dans TradeManager)
+      //--- v4: Register in PositionStateMachine only
       g_position_sm.RegisterPosition(ticket, direction, sniper.entry_price,
                                       book_sl, sniper.tp1, sniper.tp2, sniper.tp3,
                                       lot, ai_score.total_score, sniper.sniper_score);
@@ -877,7 +869,6 @@ void OnTrade()
          SendNotification(close_notif);
 
          //--- Retirer des gestionnaires
-         g_trade_manager.RemovePosition((ulong)HistoryDealGetInteger(deal_ticket, DEAL_POSITION_ID));
          g_position_sm.RemovePosition((ulong)HistoryDealGetInteger(deal_ticket, DEAL_POSITION_ID));
          if(EnableDashboard)
             g_dashboard.ClearTradeLevels();
@@ -890,9 +881,9 @@ void OnTrade()
 //+------------------------------------------------------------------+
 //| Tester les fonctions                                             |
 //+------------------------------------------------------------------+
-void OnTester()
+double OnTester()
   {
    double net_profit = g_statistics.GetStatistics().total_profit - g_statistics.GetStatistics().total_loss;
-   TesterStatistics(STAT_PROFIT, net_profit);
+   return net_profit;
   }
 //+------------------------------------------------------------------+

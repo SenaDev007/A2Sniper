@@ -167,9 +167,9 @@ int CStrategicReversalEngine::EvaluateMarketDirection(const ENUM_SIGNAL_TYPE dir
       return 0;
 
    //--- Verifier la direction sur le timeframe d'execution (M15)
-   ENUM_MARKET_DIRECTION m15_dir = m_market_structure->GetDirection(PERIOD_M15);
-   ENUM_MARKET_DIRECTION h1_dir  = m_market_structure->GetDirection(PERIOD_H1);
-   ENUM_MARKET_DIRECTION h4_dir  = m_market_structure->GetDirection(PERIOD_H4);
+   ENUM_MARKET_DIRECTION m15_dir = m_market_structure.GetDirection(PERIOD_M15);
+   ENUM_MARKET_DIRECTION h1_dir  = m_market_structure.GetDirection(PERIOD_H1);
+   ENUM_MARKET_DIRECTION h4_dir  = m_market_structure.GetDirection(PERIOD_H4);
 
    int score = 0;
 
@@ -178,9 +178,9 @@ int CStrategicReversalEngine::EvaluateMarketDirection(const ENUM_SIGNAL_TYPE dir
    if(direction == SIGNAL_BUY)
      {
       //--- CHOCH haussier = signal fort d'achat
-      if(m_market_structure->HasCHOCH(PERIOD_M15))
+      if(m_market_structure.HasCHOCH(PERIOD_M15))
         {
-         SMarketStructure m15_struct = m_market_structure->GetStructure(PERIOD_M15);
+         SMarketStructure m15_struct = m_market_structure.GetStructure(PERIOD_M15);
          if(m15_struct.last_event == STRUCTURE_CHOCH_BULLISH || m15_struct.last_event == STRUCTURE_MSS_BULLISH)
             return 20;  // Score maximum
         }
@@ -198,15 +198,15 @@ int CStrategicReversalEngine::EvaluateMarketDirection(const ENUM_SIGNAL_TYPE dir
          score += 4;
 
       //--- BOS haussier detecte
-      if(m_market_structure->HasBOS(PERIOD_M15))
+      if(m_market_structure.HasBOS(PERIOD_M15))
          score += 2;
      }
    else if(direction == SIGNAL_SELL)
      {
       //--- CHOCH baissier = signal fort de vente
-      if(m_market_structure->HasCHOCH(PERIOD_M15))
+      if(m_market_structure.HasCHOCH(PERIOD_M15))
         {
-         SMarketStructure m15_struct = m_market_structure->GetStructure(PERIOD_M15);
+         SMarketStructure m15_struct = m_market_structure.GetStructure(PERIOD_M15);
          if(m15_struct.last_event == STRUCTURE_CHOCH_BEARISH || m15_struct.last_event == STRUCTURE_MSS_BEARISH)
             return 20;  // Score maximum
         }
@@ -217,7 +217,7 @@ int CStrategicReversalEngine::EvaluateMarketDirection(const ENUM_SIGNAL_TYPE dir
          score += 6;
       if(h4_dir == MARKET_DIRECTION_BEARISH)
          score += 4;
-      if(m_market_structure->HasBOS(PERIOD_M15))
+      if(m_market_structure.HasBOS(PERIOD_M15))
          score += 2;
      }
 
@@ -269,17 +269,17 @@ int CStrategicReversalEngine::EvaluateIsolatedZone(const ENUM_SIGNAL_TYPE direct
 
    //--- Verifier Order Block frais
    ENUM_OB_TYPE ob_type = (direction == SIGNAL_BUY) ? OB_BULLISH : OB_BEARISH;
-   if(m_order_blocks->IsPriceAtOB(current_price, ob_type))
+   if(m_order_blocks.IsPriceAtOB(current_price, ob_type))
      {
-      double ob_score = m_order_blocks->GetOBScoreAtPrice(current_price, ob_type);
+      double ob_score = m_order_blocks.GetOBScoreAtPrice(current_price, ob_type);
       score += (int)(ob_score * 0.12); // Max 12 points pour OB
      }
 
    //--- Verifier FVG
    ENUM_FVG_TYPE fvg_type = (direction == SIGNAL_BUY) ? FVG_BULLISH : FVG_BEARISH;
-   if(m_fvg_engine->IsPriceInFVG(current_price, fvg_type))
+   if(m_fvg_engine.IsPriceInFVG(current_price, fvg_type))
      {
-      double fvg_score = m_fvg_engine->GetFVGScoreAtPrice(current_price, fvg_type);
+      double fvg_score = m_fvg_engine.GetFVGScoreAtPrice(current_price, fvg_type);
       score += (int)(fvg_score * 0.08); // Max 8 points pour FVG
      }
 
@@ -295,7 +295,7 @@ int CStrategicReversalEngine::EvaluateFalseInvalidation(const ENUM_SIGNAL_TYPE d
    int score = 0;
 
    //--- 1. Verifier le sweep de liquidite (composante majeure - 15 pts)
-   if(m_liquidity_engine != NULL && m_liquidity_engine->HasLiquiditySweepForDirection(direction))
+   if(m_liquidity_engine != NULL && m_liquidity_engine.HasLiquiditySweepForDirection(direction))
       score += 15;
 
    //--- 2. Verifier la fausse cassure sur la structure recente (10 pts)
@@ -311,7 +311,7 @@ int CStrategicReversalEngine::EvaluateFalseInvalidation(const ENUM_SIGNAL_TYPE d
    //--- v4: 4. Bonus si le sweep est recent (barre 0-2)
    if(m_liquidity_engine != NULL)
      {
-      SLiquidityZone nearest = m_liquidity_engine->GetNearestLiquidityZone(iClose(_Symbol, PERIOD_CURRENT, 0));
+      SLiquidityZone nearest = m_liquidity_engine.GetNearestLiquidityZone(iClose(_Symbol, PERIOD_CURRENT, 0));
       if(nearest.is_swept && nearest.is_valid)
         {
          //--- Le sweep est proche du prix actuel = plus pertinent
@@ -626,8 +626,8 @@ double CStrategicReversalEngine::GetSessionQualityModifier() const
    if(m_session_engine == NULL)
       return 1.0;  // Pas de filtrage si session engine non disponible
 
-   ENUM_TRADING_SESSION session = m_session_engine->GetActiveSession();
-   bool is_killzone = m_session_engine->IsKillZone();
+   ENUM_TRADING_SESSION session = m_session_engine.GetActiveSession();
+   bool is_killzone = m_session_engine.IsKillZone();
 
    double modifier = 1.0;
 
@@ -665,11 +665,11 @@ bool CStrategicReversalEngine::IsPriceInIsolatedZone(const ENUM_SIGNAL_TYPE dire
    double current_price = iClose(_Symbol, PERIOD_CURRENT, 0);
 
    ENUM_OB_TYPE ob_type = (direction == SIGNAL_BUY) ? OB_BULLISH : OB_BEARISH;
-   if(m_order_blocks != NULL && m_order_blocks->IsPriceAtOB(current_price, ob_type))
+   if(m_order_blocks != NULL && m_order_blocks.IsPriceAtOB(current_price, ob_type))
       return true;
 
    ENUM_FVG_TYPE fvg_type = (direction == SIGNAL_BUY) ? FVG_BULLISH : FVG_BEARISH;
-   if(m_fvg_engine != NULL && m_fvg_engine->IsPriceInFVG(current_price, fvg_type))
+   if(m_fvg_engine != NULL && m_fvg_engine.IsPriceInFVG(current_price, fvg_type))
       return true;
 
    return false;

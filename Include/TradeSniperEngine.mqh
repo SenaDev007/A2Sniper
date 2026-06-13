@@ -253,9 +253,9 @@ int CTradeSniperEngine::ScoreStructure(ENUM_SIGNAL_TYPE direction)
    if(m_market_structure == NULL) return 0;
 
    int score = 0;
-   SMarketStructure m15_struct = m_market_structure->GetStructure(PERIOD_M15);
-   SMarketStructure h1_struct = m_market_structure->GetStructure(PERIOD_H1);
-   SMarketStructure h4_struct = m_market_structure->GetStructure(PERIOD_H4);
+   SMarketStructure m15_struct = m_market_structure.GetStructure(PERIOD_M15);
+   SMarketStructure h1_struct = m_market_structure.GetStructure(PERIOD_H1);
+   SMarketStructure h4_struct = m_market_structure.GetStructure(PERIOD_H4);
 
    //--- M15 structure alignee (8 pts)
    if(direction == SIGNAL_BUY)
@@ -296,17 +296,17 @@ int CTradeSniperEngine::ScoreZone(ENUM_SIGNAL_TYPE direction, double &entry, dou
 
    int score = 0;
    double current_price = SymbolInfoDouble(_Symbol, SYMBOL_BID);
-   double atr = m_volatility_engine->GetCurrentATR();
+   double atr = m_volatility_engine.GetCurrentATR();
    if(atr <= 0) atr = current_price * 0.001;  // Fallback
 
    //--- Proximite avec Order Block (10 pts)
    double best_ob_price = 0;
    double ob_score = 0;
-   for(int i = 0; i < m_order_blocks->GetBullishCount() + m_order_blocks->GetBearishCount(); i++)
+   for(int i = 0; i < m_order_blocks.GetBullishCount() + m_order_blocks.GetBearishCount(); i++)
      {
-      bool is_bullish = (i < m_order_blocks->GetBullishCount());
-      SOrderBlock ob = is_bullish ? m_order_blocks->GetBullishOB(i) :
-                       m_order_blocks->GetBearishOB(i - m_order_blocks->GetBullishCount());
+      bool is_bullish = (i < m_order_blocks.GetBullishCount());
+      SOrderBlock ob = is_bullish ? m_order_blocks.GetBullishOB(i) :
+                       m_order_blocks.GetBearishOB(i - m_order_blocks.GetBullishCount());
       if(!ob.is_valid || ob.state == OB_STATE_CONSUMED) continue;
 
       double distance = MathAbs(current_price - (ob.high + ob.low) / 2.0);
@@ -330,11 +330,11 @@ int CTradeSniperEngine::ScoreZone(ENUM_SIGNAL_TYPE direction, double &entry, dou
    //--- Proximite avec FVG (8 pts)
    double best_fvg_price = 0;
    double fvg_score = 0;
-   for(int i = 0; i < m_fvg_engine->GetBullishCount() + m_fvg_engine->GetBearishCount(); i++)
+   for(int i = 0; i < m_fvg_engine.GetBullishCount() + m_fvg_engine.GetBearishCount(); i++)
      {
-      bool is_bullish = (i < m_fvg_engine->GetBullishCount());
-      SFVG fvg = is_bullish ? m_fvg_engine->GetBullishFVG(i) :
-                  m_fvg_engine->GetBearishFVG(i - m_fvg_engine->GetBullishCount());
+      bool is_bullish = (i < m_fvg_engine.GetBullishCount());
+      SFVG fvg = is_bullish ? m_fvg_engine.GetBullishFVG(i) :
+                  m_fvg_engine.GetBearishFVG(i - m_fvg_engine.GetBullishCount());
       if(!fvg.is_valid || fvg.is_filled) continue;
 
       double fvg_mid = (fvg.high + fvg.low) / 2.0;
@@ -358,9 +358,9 @@ int CTradeSniperEngine::ScoreZone(ENUM_SIGNAL_TYPE direction, double &entry, dou
 
    //--- Sweep de liquidite (7 pts)
    bool has_sweep = false;
-   for(int i = 0; i < m_liquidity_engine->GetZoneCount(); i++)
+   for(int i = 0; i < m_liquidity_engine.GetZoneCount(); i++)
      {
-      SLiquidityZone zone = m_liquidity_engine->GetZone(i);
+      SLiquidityZone zone = m_liquidity_engine.GetZone(i);
       if(!zone.is_valid) continue;
 
       if(zone.is_swept)
@@ -397,8 +397,8 @@ int CTradeSniperEngine::ScoreTiming()
    if(m_session_engine == NULL) return 0;
 
    int score = 0;
-   ENUM_TRADING_SESSION session = m_session_engine->GetActiveSession();
-   bool is_killzone = m_session_engine->IsKillZoneActive();
+   ENUM_TRADING_SESSION session = m_session_engine.GetActiveSession();
+   bool is_killzone = m_session_engine.IsKillZone();
 
    //--- Session de trading (10 pts)
    if(session == SESSION_OVERLAP_LN) score += 10;     // Overlap Londres/NY - le meilleur
@@ -424,22 +424,22 @@ int CTradeSniperEngine::ScoreConfluence(ENUM_SIGNAL_TYPE direction)
    if(m_order_blocks != NULL)
      {
       //--- OB dans la direction du trade
-      if(direction == SIGNAL_BUY && m_order_blocks->GetBullishCount() > 0) confluences++;
-      if(direction == SIGNAL_SELL && m_order_blocks->GetBearishCount() > 0) confluences++;
+      if(direction == SIGNAL_BUY && m_order_blocks.GetBullishCount() > 0) confluences++;
+      if(direction == SIGNAL_SELL && m_order_blocks.GetBearishCount() > 0) confluences++;
      }
 
    if(m_fvg_engine != NULL)
      {
-      if(direction == SIGNAL_BUY && m_fvg_engine->GetBullishCount() > 0) confluences++;
-      if(direction == SIGNAL_SELL && m_fvg_engine->GetBearishCount() > 0) confluences++;
+      if(direction == SIGNAL_BUY && m_fvg_engine.GetBullishCount() > 0) confluences++;
+      if(direction == SIGNAL_SELL && m_fvg_engine.GetBearishCount() > 0) confluences++;
      }
 
    if(m_liquidity_engine != NULL)
      {
       //--- Liquidite sweep dans la direction opposee
-      for(int i = 0; i < m_liquidity_engine->GetZoneCount(); i++)
+      for(int i = 0; i < m_liquidity_engine.GetZoneCount(); i++)
         {
-         SLiquidityZone zone = m_liquidity_engine->GetZone(i);
+         SLiquidityZone zone = m_liquidity_engine.GetZone(i);
          if(!zone.is_valid || !zone.is_swept) continue;
          if(direction == SIGNAL_BUY && (zone.type == LIQUIDITY_SSL || zone.type == LIQUIDITY_EQUAL_LOW)) confluences++;
          if(direction == SIGNAL_SELL && (zone.type == LIQUIDITY_BSL || zone.type == LIQUIDITY_EQUAL_HIGH)) confluences++;
@@ -448,7 +448,7 @@ int CTradeSniperEngine::ScoreConfluence(ENUM_SIGNAL_TYPE direction)
      }
 
    //--- Multi-timeframe alignement
-   if(m_market_structure != NULL && m_market_structure->IsMultiTimeframeAligned())
+   if(m_market_structure != NULL && m_market_structure.IsMultiTimeframeAligned())
       confluences++;
 
    //--- Convertir en score (max 15)
@@ -471,11 +471,11 @@ int CTradeSniperEngine::ScoreVolume()
    int score = 0;
 
    //--- Volume au-dessus de la moyenne
-   if(m_volume_engine->IsVolumeAboveAverage()) score += 5;
+   if(m_volume_engine.IsVolumeAboveAverage()) score += 5;
 
    //--- Volume institutionnel (2.5x la moyenne)
    //--- Utilise la methode disponible
-   double volume_ratio = m_volume_engine->GetRelativeVolume();
+   double volume_ratio = m_volume_engine.GetRelativeVolume();
    if(volume_ratio >= INSTITUTIONAL_VOL_MULT) score += 10;
    else if(volume_ratio >= DEFAULT_VOLUME_MULTIPLIER) score += 5;
 
@@ -489,13 +489,13 @@ int CTradeSniperEngine::ScoreVolume()
 double CTradeSniperEngine::CalculateSniperSL(ENUM_SIGNAL_TYPE direction, double entry_price)
   {
    double sl = 0;
-   double atr = (m_volatility_engine != NULL) ? m_volatility_engine->GetCurrentATR() : 0;
+   double atr = (m_volatility_engine != NULL) ? m_volatility_engine.GetCurrentATR() : 0;
    int digits = (int)SymbolInfoInteger(_Symbol, SYMBOL_DIGITS);
 
    //--- 1. Essayer le SL structurel (sous le dernier swing)
    if(m_market_structure != NULL)
      {
-      SMarketStructure m15 = m_market_structure->GetStructure(PERIOD_M15);
+      SMarketStructure m15 = m_market_structure.GetStructure(PERIOD_M15);
 
       if(direction == SIGNAL_BUY && m15.last_swing_low > 0)
         {
@@ -579,7 +579,7 @@ double CTradeSniperEngine::CalculatePrecisionEntry(ENUM_SIGNAL_TYPE direction, E
    if(zone == SNIPER_ZONE_OB || zone == SNIPER_ZONE_FVG || zone == SNIPER_ZONE_CONFLUENCE)
      {
       //--- Ajuster legerement pour etre du bon cote de la zone
-      double atr = (m_volatility_engine != NULL) ? m_volatility_engine->GetCurrentATR() : 0;
+      double atr = (m_volatility_engine != NULL) ? m_volatility_engine.GetCurrentATR() : 0;
       double micro_offset = (atr > 0) ? atr * 0.05 : _Point;  // 5% de l'ATR = micro-offset
 
       if(direction == SIGNAL_BUY)
@@ -598,7 +598,7 @@ double CTradeSniperEngine::CalculatePrecisionEntry(ENUM_SIGNAL_TYPE direction, E
 ENUM_SNIPER_ZONE CTradeSniperEngine::IdentifySniperZone(ENUM_SIGNAL_TYPE direction, double &zone_price)
   {
    double current_price = SymbolInfoDouble(_Symbol, SYMBOL_BID);
-   double atr = (m_volatility_engine != NULL) ? m_volatility_engine->GetCurrentATR() : current_price * 0.001;
+   double atr = (m_volatility_engine != NULL) ? m_volatility_engine.GetCurrentATR() : current_price * 0.001;
    zone_price = 0;
 
    bool has_ob = false, has_fvg = false, has_liq = false;
@@ -607,11 +607,11 @@ ENUM_SNIPER_ZONE CTradeSniperEngine::IdentifySniperZone(ENUM_SIGNAL_TYPE directi
    //--- Verifier OB
    if(m_order_blocks != NULL)
      {
-      int count = (direction == SIGNAL_BUY) ? m_order_blocks->GetBullishCount() : m_order_blocks->GetBearishCount();
+      int count = (direction == SIGNAL_BUY) ? m_order_blocks.GetBullishCount() : m_order_blocks.GetBearishCount();
       for(int i = 0; i < count; i++)
         {
-         SOrderBlock ob = (direction == SIGNAL_BUY) ? m_order_blocks->GetBullishOB(i) :
-                          m_order_blocks->GetBearishOB(i);
+         SOrderBlock ob = (direction == SIGNAL_BUY) ? m_order_blocks.GetBullishOB(i) :
+                          m_order_blocks.GetBearishOB(i);
          if(!ob.is_valid || ob.state == OB_STATE_CONSUMED) continue;
 
          double ob_mid = (ob.high + ob.low) / 2.0;
@@ -627,11 +627,11 @@ ENUM_SNIPER_ZONE CTradeSniperEngine::IdentifySniperZone(ENUM_SIGNAL_TYPE directi
    //--- Verifier FVG
    if(m_fvg_engine != NULL)
      {
-      int count = (direction == SIGNAL_BUY) ? m_fvg_engine->GetBullishCount() : m_fvg_engine->GetBearishCount();
+      int count = (direction == SIGNAL_BUY) ? m_fvg_engine.GetBullishCount() : m_fvg_engine.GetBearishCount();
       for(int i = 0; i < count; i++)
         {
-         SFVG fvg = (direction == SIGNAL_BUY) ? m_fvg_engine->GetBullishFVG(i) :
-                     m_fvg_engine->GetBearishFVG(i);
+         SFVG fvg = (direction == SIGNAL_BUY) ? m_fvg_engine.GetBullishFVG(i) :
+                     m_fvg_engine.GetBearishFVG(i);
          if(!fvg.is_valid || fvg.is_filled) continue;
 
          double fvg_mid = (fvg.high + fvg.low) / 2.0;
@@ -647,9 +647,9 @@ ENUM_SNIPER_ZONE CTradeSniperEngine::IdentifySniperZone(ENUM_SIGNAL_TYPE directi
    //--- Verifier Liquidite
    if(m_liquidity_engine != NULL)
      {
-      for(int i = 0; i < m_liquidity_engine->GetZoneCount(); i++)
+      for(int i = 0; i < m_liquidity_engine.GetZoneCount(); i++)
         {
-         SLiquidityZone zone = m_liquidity_engine->GetZone(i);
+         SLiquidityZone zone = m_liquidity_engine.GetZone(i);
          if(!zone.is_valid) continue;
 
          double distance = MathAbs(current_price - zone.price) / atr;
@@ -688,9 +688,9 @@ ENUM_SNIPER_TIMING CTradeSniperEngine::IdentifyOptimalTiming()
   {
    if(m_session_engine == NULL) return SNIPER_TIMING_NONE;
 
-   if(m_session_engine->IsKillZoneActive())
+   if(m_session_engine.IsKillZone())
      {
-      ENUM_TRADING_SESSION session = m_session_engine->GetActiveSession();
+      ENUM_TRADING_SESSION session = m_session_engine.GetActiveSession();
       if(session == SESSION_OVERLAP_LN) return SNIPER_TIMING_OVERLAP;
       if(session == SESSION_LONDON) return SNIPER_TIMING_OPEN;
       if(session == SESSION_NEWYORK) return SNIPER_TIMING_OPEN;
@@ -725,9 +725,9 @@ bool CTradeSniperEngine::ValidateSniperEntry(ENUM_SIGNAL_TYPE direction, double 
    //--- Verifier l'ATR minimum (eviter les marches morts)
    if(m_volatility_engine != NULL)
      {
-      double atr = m_volatility_engine->GetCurrentATR();
+      double atr = m_volatility_engine.GetCurrentATR();
       if(atr <= 0 || atr < MIN_ATR_FOR_TRADE) return false;
-      if(!m_volatility_engine->IsVolatilityAcceptable()) return false;
+      if(!m_volatility_engine.IsVolatilityAcceptable()) return false;
      }
 
    //--- Verifier qu'on n'a pas deja une position
@@ -755,7 +755,7 @@ bool CTradeSniperEngine::ValidateMicroTiming(ENUM_SIGNAL_TYPE direction)
 
    //--- Accepter UNIQUEMENT pendant les Kill Zones
    //--- Sauf si le score est exceptionnel
-   return m_session_engine->IsKillZoneActive() || m_session_engine->IsOptimalTradingTime();
+   return m_session_engine.IsKillZone() || m_session_engine.IsOptimalTradingTime();
   }
 
 //+------------------------------------------------------------------+
@@ -769,30 +769,29 @@ bool CTradeSniperEngine::ValidateInstitutionalFootprint(ENUM_SIGNAL_TYPE directi
    bool has_htf_ob = false;
    double current_price = SymbolInfoDouble(_Symbol, SYMBOL_BID);
 
-   //--- Verifier OB M15
+   //--- FIX v4.2: Price must BE at OB, not just OB exist somewhere
    if(m_order_blocks != NULL)
      {
-      int count = (direction == SIGNAL_BUY) ? m_order_blocks->GetBullishCount() : m_order_blocks->GetBearishCount();
-      has_ob = (count > 0);
+      ENUM_OB_TYPE ob_type = (direction == SIGNAL_BUY) ? OB_BULLISH : OB_BEARISH;
+      has_ob = m_order_blocks.IsPriceAtOB(current_price, ob_type);
 
       //--- v4: Verifier aussi OB HTF (H1/H4) - beaucoup plus puissant
-      ENUM_OB_TYPE ob_type = (direction == SIGNAL_BUY) ? OB_BULLISH : OB_BEARISH;
-      has_htf_ob = m_order_blocks->IsPriceAtHTFOB(current_price, ob_type);
+      has_htf_ob = m_order_blocks.IsPriceAtHTFOB(current_price, ob_type);
      }
 
-   //--- Verifier FVG
+   //--- FIX v4.2: Price must BE in FVG, not just FVG exist somewhere
    if(m_fvg_engine != NULL)
      {
-      int count = (direction == SIGNAL_BUY) ? m_fvg_engine->GetBullishCount() : m_fvg_engine->GetBearishCount();
-      has_fvg = (count > 0);
+      ENUM_FVG_TYPE fvg_type = (direction == SIGNAL_BUY) ? FVG_BULLISH : FVG_BEARISH;
+      has_fvg = m_fvg_engine.IsPriceInFVG(current_price, fvg_type);
      }
 
    //--- Verifier liquidity sweep
    if(m_liquidity_engine != NULL)
      {
-      for(int i = 0; i < m_liquidity_engine->GetZoneCount(); i++)
+      for(int i = 0; i < m_liquidity_engine.GetZoneCount(); i++)
         {
-         SLiquidityZone zone = m_liquidity_engine->GetZone(i);
+         SLiquidityZone zone = m_liquidity_engine.GetZone(i);
          if(!zone.is_valid || !zone.is_swept) continue;
          if((direction == SIGNAL_BUY && (zone.type == LIQUIDITY_SSL || zone.type == LIQUIDITY_EQUAL_LOW)) ||
             (direction == SIGNAL_SELL && (zone.type == LIQUIDITY_BSL || zone.type == LIQUIDITY_EQUAL_HIGH)))

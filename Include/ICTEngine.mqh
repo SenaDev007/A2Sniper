@@ -167,7 +167,7 @@ bool CICTEngine::DetectJudasSwing()
       return false;
 
    //--- Le Judas Swing se produit pendant les 2 premières heures de Londres
-   if(!m_session_engine->IsJudasSwingTime())
+   if(!m_session_engine.IsJudasSwingTime())
      {
       m_judas_swing_detected = false;
       return false;
@@ -220,7 +220,7 @@ bool CICTEngine::Update()
       return false;
 
    //--- Kill Zone active ?
-   m_kill_zone_active = (m_session_engine != NULL) ? m_session_engine->IsKillZone() : false;
+   m_kill_zone_active = (m_session_engine != NULL) ? m_session_engine.IsKillZone() : false;
 
    //--- Calculer Fibonacci
    CalculateFibonacciLevels();
@@ -256,7 +256,7 @@ bool CICTEngine::HasICTConfirmation(const ENUM_SIGNAL_TYPE direction) const
       confirmations++;
 
    //--- NY Reversal Time
-   if(m_session_engine != NULL && m_session_engine->IsNYReversalTime())
+   if(m_session_engine != NULL && m_session_engine.IsNYReversalTime())
       confirmations++;
 
    return (confirmations >= 2);
@@ -282,7 +282,7 @@ double CICTEngine::GetICTScore(const ENUM_SIGNAL_TYPE direction) const
       score += 20;
 
    //--- Session optimale (20 pts)
-   if(m_session_engine != NULL && m_session_engine->IsOptimalTradingTime())
+   if(m_session_engine != NULL && m_session_engine.IsOptimalTradingTime())
       score += 20;
 
    return MathMin(score, 100.0);

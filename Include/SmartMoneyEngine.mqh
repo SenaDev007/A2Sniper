@@ -156,7 +156,7 @@ double CSmartMoneyEngine::GetSwingHighForRange() const
   {
    if(m_market_structure != NULL)
      {
-      double sh = m_market_structure->GetLastSwingHigh(PERIOD_CURRENT);
+      double sh = m_market_structure.GetLastSwingHigh(PERIOD_CURRENT);
       if(sh > 0) return sh;
      }
 
@@ -177,7 +177,7 @@ double CSmartMoneyEngine::GetSwingLowForRange() const
   {
    if(m_market_structure != NULL)
      {
-      double sl = m_market_structure->GetLastSwingLow(PERIOD_CURRENT);
+      double sl = m_market_structure.GetLastSwingLow(PERIOD_CURRENT);
       if(sl > 0) return sl;
      }
 
@@ -221,7 +221,7 @@ bool CSmartMoneyEngine::HasSmartMoneyConfirmation(const ENUM_SIGNAL_TYPE directi
    if(m_order_blocks != NULL)
      {
       ENUM_OB_TYPE ob_type = (direction == SIGNAL_BUY) ? OB_BULLISH : OB_BEARISH;
-      if(m_order_blocks->IsPriceAtOB(current_price, ob_type))
+      if(m_order_blocks.IsPriceAtOB(current_price, ob_type))
          confirmations++;
      }
 
@@ -229,14 +229,14 @@ bool CSmartMoneyEngine::HasSmartMoneyConfirmation(const ENUM_SIGNAL_TYPE directi
    if(m_fvg_engine != NULL)
      {
       ENUM_FVG_TYPE fvg_type = (direction == SIGNAL_BUY) ? FVG_BULLISH : FVG_BEARISH;
-      if(m_fvg_engine->IsPriceInFVG(current_price, fvg_type))
+      if(m_fvg_engine.IsPriceInFVG(current_price, fvg_type))
          confirmations++;
      }
 
    //--- 4. Liquidity sweep dans la direction opposée
    if(m_liquidity_engine != NULL)
      {
-      if(m_liquidity_engine->HasLiquiditySweepForDirection(direction))
+      if(m_liquidity_engine.HasLiquiditySweepForDirection(direction))
          confirmations++;
      }
 
@@ -277,7 +277,7 @@ double CSmartMoneyEngine::GetSMCScore(const ENUM_SIGNAL_TYPE direction) const
    if(m_order_blocks != NULL)
      {
       ENUM_OB_TYPE ob_type = (direction == SIGNAL_BUY) ? OB_BULLISH : OB_BEARISH;
-      double ob_score = m_order_blocks->GetOBScoreAtPrice(current_price, ob_type);
+      double ob_score = m_order_blocks.GetOBScoreAtPrice(current_price, ob_type);
       score += ob_score * 0.25;
      }
 
@@ -285,14 +285,14 @@ double CSmartMoneyEngine::GetSMCScore(const ENUM_SIGNAL_TYPE direction) const
    if(m_fvg_engine != NULL)
      {
       ENUM_FVG_TYPE fvg_type = (direction == SIGNAL_BUY) ? FVG_BULLISH : FVG_BEARISH;
-      double fvg_score = m_fvg_engine->GetFVGScoreAtPrice(current_price, fvg_type);
+      double fvg_score = m_fvg_engine.GetFVGScoreAtPrice(current_price, fvg_type);
       score += fvg_score * 0.25;
      }
 
    //--- Liquidity (25 pts)
    if(m_liquidity_engine != NULL)
      {
-      double liq_score = m_liquidity_engine->GetLiquidityScore(direction);
+      double liq_score = m_liquidity_engine.GetLiquidityScore(direction);
       score += liq_score * 0.25;
      }
 
