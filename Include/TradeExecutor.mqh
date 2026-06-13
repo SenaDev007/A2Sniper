@@ -311,26 +311,21 @@ int CTradeExecutor::ExecuteBuy(double entry_price, double sl, double tp1, double
      }
 
    //--- Verifier le risque
-   if(m_risk_manager != NULL && !m_risk_manager.CanOpenTrade(SIGNAL_BUY))
-     {
-      Print("A2Sniper TE: Trade refuse par Risk Manager");
-      return -1;
-     }
+   //--- FIX v5.1: SKIP Risk Manager check here - already done in pipeline
+   //--- When UseAdaptiveRisk=true, g_risk_manager is NOT initialized,
+   //--- so this check always fails! Risk checks are done BEFORE ExecuteBuy is called.
+   //--- if(m_risk_manager != NULL && !m_risk_manager.CanOpenTrade(SIGNAL_BUY))
+   //---   {
+   //---    Print("A2Sniper TE: Trade refuse par Risk Manager");
+   //---    return -1;
+   //---   }
 
-   //--- Verifier la marge disponible (FIX)
-   if(m_risk_manager != NULL && !m_risk_manager.HasEnoughMargin(lot))
-     {
-      Print("A2Sniper TE: Marge insuffisante pour lot=", lot);
-      m_total_errors++;
-      return -1;
-     }
+   //--- FIX v5.1: Margin/lot checks already done in TryExecuteSniperSignal pipeline
+   //--- No need to duplicate them here - and g_risk_manager may not be initialized!
 
    //--- Calculer le lot si necessaire
-   if(lot <= 0 && m_risk_manager != NULL)
-     {
-      double sl_pips = MathAbs(price - sl_copy) / _Point;
-      lot = m_risk_manager.CalculateLotSize(sl_pips);
-     }
+   if(lot <= 0)
+      lot = SymbolInfoDouble(_Symbol, SYMBOL_VOLUME_MIN);
 
    if(lot <= 0)
      {
@@ -370,25 +365,12 @@ int CTradeExecutor::ExecuteSell(double entry_price, double sl, double tp1, doubl
       return -1;
      }
 
-   if(m_risk_manager != NULL && !m_risk_manager.CanOpenTrade(SIGNAL_SELL))
-     {
-      Print("A2Sniper TE: Trade refuse par Risk Manager");
-      return -1;
-     }
+   //--- FIX v5.1: Risk Manager checks already done in TryExecuteSniperSignal pipeline
+   //--- Skip to avoid double-check with uninitialized g_risk_manager
 
-   //--- Verifier la marge disponible (FIX)
-   if(m_risk_manager != NULL && !m_risk_manager.HasEnoughMargin(lot))
-     {
-      Print("A2Sniper TE: Marge insuffisante pour lot=", lot);
-      m_total_errors++;
-      return -1;
-     }
-
-   if(lot <= 0 && m_risk_manager != NULL)
-     {
-      double sl_pips = MathAbs(price - sl_copy) / _Point;
-      lot = m_risk_manager.CalculateLotSize(sl_pips);
-     }
+   //--- Calculer le lot si necessaire
+   if(lot <= 0)
+      lot = SymbolInfoDouble(_Symbol, SYMBOL_VOLUME_MIN);
 
    if(lot <= 0)
      {

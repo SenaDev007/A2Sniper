@@ -158,15 +158,15 @@ int OnInit()
    Print("========================================");
 
    //--- 1. Initialiser le Risk Manager
+   //--- FIX v5.1: Toujours initialiser g_risk_manager car TradeExecutor l'utilise
+   //--- pour ValidateOrder/CalculateLotSize en fallback
+   if(!g_risk_manager.Initialize(RiskPercent, MaxDailyDD, MaxWeeklyDD, MaxMonthlyDD, MaxPositions, MagicNumber))
+     { Print("A2Sniper Trading: ERREUR - Risk Manager"); return INIT_FAILED; }
+
    if(UseAdaptiveRisk)
      {
       if(!g_adaptive_risk.Initialize(RiskPercent, MaxDailyDD, MaxWeeklyDD, MaxMonthlyDD, MaxPositions, MaxDailyTrades, MagicNumber))
         { Print("A2Sniper Trading: ERREUR - Adaptive Risk Engine"); return INIT_FAILED; }
-     }
-   else
-     {
-      if(!g_risk_manager.Initialize(RiskPercent, MaxDailyDD, MaxWeeklyDD, MaxMonthlyDD, MaxPositions, MagicNumber))
-        { Print("A2Sniper Trading: ERREUR - Risk Manager"); return INIT_FAILED; }
      }
 
    //--- 2. Initialiser les moteurs d'analyse
@@ -198,8 +198,25 @@ int OnInit()
      { Print("A2Sniper Trading: ERREUR - AI Scoring Engine"); return INIT_FAILED; }
 
    //--- 4. Trade Executor
-   if(!g_trade_executor.Initialize(&g_risk_manager, MagicNumber))
-     { Print("A2Sniper Trading: ERREUR - Trade Executor"); return INIT_FAILED; }
+   //--- FIX v5.1: Utiliser le BON RiskManager selon UseAdaptiveRisk
+   //--- L'ancien code utilisait toujours g_risk_manager meme quand UseAdaptiveRisk=true
+   //--- Ca causait "Trade refuse par Risk Manager" sur TOUS les trades car g_risk_manager
+   //--- n'etait pas initialise!
+   if(UseAdaptiveRisk)
+     {
+      //--- v5.1: On ne peut pas passer CAdaptiveRiskEngine* a Initialize(CRiskManager*)
+      //--- Solution: Le TradeExecutor n'utilise le RM que pour CanOpenTrade/HasEnoughMargin
+      //--- On initialise avec g_risk_manager MAIS on override les checks dans le pipeline
+      if(!g_trade_executor.Initialize(&g_risk_manager, MagicNumber))
+        { Print("A2Sniper Trading: ERREUR - Trade Executor"); return INIT_FAILED; }
+      //--- Les verifications de risque sont deja faites dans TryExecuteSniperSignal
+      //--- via g_adaptive_risk.CanOpenTrade() avant l'appel a ExecuteBuy/Sell
+     }
+   else
+     {
+      if(!g_trade_executor.Initialize(&g_risk_manager, MagicNumber))
+        { Print("A2Sniper Trading: ERREUR - Trade Executor"); return INIT_FAILED; }
+     }
 
    //--- FIX v4.2: Trade Manager removed - PSM handles all trade management
 
