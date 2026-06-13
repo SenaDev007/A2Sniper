@@ -149,16 +149,17 @@ bool CRiskManager::Initialize(double risk_pct, double daily_dd, double weekly_dd
   {
    m_risk_percent = (risk_pct > 0 && risk_pct <= 5.0) ? risk_pct : DEFAULT_RISK_PERCENT;
 
-   //--- FIX v4.2: Adaptive risk for small accounts (200-500 USD)
+   //--- FIX v5: Adaptive risk for small accounts (200-500 USD)
+   //--- Ne plus reduire le risque pour les petits comptes!
+   //--- Le risque de 1% sur 200 USD = 2 USD, lot 0.01 suffit
+   //--- L'ancien code reduisait a 0.4% ce qui donnait des lots trop petits
    double equity = AccountInfoDouble(ACCOUNT_EQUITY);
    if(equity > 0 && equity < 500.0)
      {
-      //--- Scale down risk proportionally for small accounts
-      //--- 200 USD -> 0.5% max, 300 USD -> 0.7%, 500 USD -> 1.0%
-      double adaptive_risk = MathMax(0.3, (equity / 500.0) * m_risk_percent);
-      m_risk_percent = MathMin(m_risk_percent, adaptive_risk);
+      //--- v5: Garder le risque de base, ne pas le reduire
+      //--- Le lot minimum du broker (0.01) est le filet de securite
       Print("A2Sniper RM: Small account detected (", DoubleToString(equity, 0),
-            " USD) - Risk adjusted to ", DoubleToString(m_risk_percent, 1), "%");
+            " USD) - Risk kept at ", DoubleToString(m_risk_percent, 1), "%");
      }
 
    m_max_daily_dd = (daily_dd > 0 && daily_dd <= 20.0) ? daily_dd : DEFAULT_DAILY_DD;
@@ -466,12 +467,22 @@ double CRiskManager::CalculateLotSize(double sl_distance_pips) const
    double lot_step = SymbolInfoDouble(_Symbol, SYMBOL_VOLUME_STEP);
 
    lot_size = MathFloor(lot_size / lot_step) * lot_step;
-   lot_size = MathMax(lot_size, min_lot);
+
+   //--- v5: Utiliser le lot minimum si le lot calcule est trop petit
+   //--- Au lieu de retourner 0, on retourne min_lot (0.01)
+   if(lot_size < min_lot)
+      lot_size = min_lot;
+
    lot_size = MathMin(lot_size, max_lot);
 
    //--- Verifier l'exposition max
    double max_lot_exposure = (balance * m_max_exposure_pct / 100.0) /
                               (iClose(_Symbol, PERIOD_CURRENT, 0) * tick_value / tick_size);
+
+   //--- v5: Ne pas laisser l'exposition reduire le lot en dessous du minimum
+   if(max_lot_exposure < min_lot)
+      max_lot_exposure = min_lot;
+
    lot_size = MathMin(lot_size, max_lot_exposure);
 
    return NormalizeDouble(lot_size, 2);

@@ -722,12 +722,16 @@ bool CTradeSniperEngine::ValidateSniperEntry(ENUM_SIGNAL_TYPE direction, double 
    double spread = SymbolInfoInteger(_Symbol, SYMBOL_SPREAD) * _Point;
    if(spread > MAX_SPREAD_POINTS * _Point) return false;
 
-   //--- Verifier l'ATR minimum (eviter les marches morts)
+   //--- v5: ATR minimum reduit - l'ancien seuil 0.0005 bloquait trop de signaux
+   //--- EURUSD M15 ATR peut descendre a 0.0003 en periode calme
    if(m_volatility_engine != NULL)
      {
       double atr = m_volatility_engine.GetCurrentATR();
-      if(atr <= 0 || atr < MIN_ATR_FOR_TRADE) return false;
-      if(!m_volatility_engine.IsVolatilityAcceptable()) return false;
+      //--- v5: ATR minimum reduit de 0.0005 a 0.0001
+      if(atr <= 0 || atr < 0.0001) return false;
+      //--- v5: Ne plus bloquer sur IsVolatilityAcceptable()
+      //--- La volatilité basse n'est pas un motif de blocage,
+      //--- c'est un motif de réduction de score (déjà géré dans le scoring)
      }
 
    //--- Verifier qu'on n'a pas deja une position
@@ -869,19 +873,17 @@ SSniperSignal CTradeSniperEngine::HuntSniperSignal(ENUM_SIGNAL_TYPE direction)
 
    m_total_signals++;
 
-   //--- 1. Validation prealable
+   //--- 1. Validation prealable (seuls les filtres durs restent bloquants)
+   //--- v5: ValidateSniperEntry verifie spread/ATR/volatilité - reste bloquant
    if(!ValidateSniperEntry(direction, SymbolInfoDouble(_Symbol, SYMBOL_BID)))
       return signal;
 
-   //--- 2. Validation du micro-timing
-   if(!ValidateMicroTiming(direction))
-      return signal;
+   //--- v5: ValidateMicroTiming et ValidateInstitutionalFootprint ne sont PLUS bloquants
+   //--- Ils affectent le score (bonus/malus) mais ne bloquent plus le signal
+   bool has_micro_timing = ValidateMicroTiming(direction);
+   bool has_institutional = ValidateInstitutionalFootprint(direction);
 
-   //--- 3. Validation empreinte institutionnelle
-   if(!ValidateInstitutionalFootprint(direction))
-      return signal;
-
-   //--- 4. Calcul des scores detailles
+   //--- 2. Calcul des scores detailles
    double zone_price = 0;
    signal.score_structure = ScoreStructure(direction);
    signal.score_zone = ScoreZone(direction, zone_price, signal.stop_loss);
@@ -889,42 +891,100 @@ SSniperSignal CTradeSniperEngine::HuntSniperSignal(ENUM_SIGNAL_TYPE direction)
    signal.score_confluence = ScoreConfluence(direction);
    signal.score_volume = ScoreVolume();
 
-   //--- 5. Score total
+   //--- v5: Appliquer les bonus/malus pour micro-timing et empreinte institutionnelle
+   //--- Au lieu de bloquer, on ajuste le score
+   if(!has_micro_timing)     signal.score_timing -= 5;    // Pas de timing optimal = -5
+   if(!has_institutional)    signal.score_zone -= 8;      // Pas d'empreinte inst. = -8
+   if(has_institutional)     signal.score_zone += 3;      // Empreinte inst. = +3 bonus
+   if(has_micro_timing)      signal.score_timing += 3;    // Timing optimal = +3 bonus
+
+   //--- Clamper les scores
+   signal.score_structure = MathMax(0, MathMin(25, signal.score_structure));
+   signal.score_zone = MathMax(0, MathMin(25, signal.score_zone));
+   signal.score_timing = MathMax(0, MathMin(20, signal.score_timing));
+   signal.score_confluence = MathMax(0, MathMin(15, signal.score_confluence));
+   signal.score_volume = MathMax(0, MathMin(15, signal.score_volume));
+
+   //--- 3. Score total
    signal.sniper_score = signal.score_structure + signal.score_zone +
                           signal.score_timing + signal.score_confluence + signal.score_volume;
 
-   //--- 6. Identification de la zone
+   //--- 4. Identification de la zone
    double identified_zone_price = 0;
    signal.zone_type = IdentifySniperZone(direction, identified_zone_price);
    if(zone_price <= 0) zone_price = identified_zone_price;
 
-   //--- 7. Identification du timing
+   //--- 5. Identification du timing
    signal.timing = IdentifyOptimalTiming();
 
-   //--- 8. Calcul de l'entree precise
+   //--- v5: Si pas de timing institutionnel, mettre le timing identifie
+   if(!has_micro_timing && signal.timing == SNIPER_TIMING_NONE)
+     {
+      //--- Essayer de trouver au moins un timing de session
+      if(m_session_engine != NULL)
+        {
+         if(m_session_engine.IsLondonSession()) signal.timing = SNIPER_TIMING_OPEN;
+         else if(m_session_engine.IsNewYorkSession()) signal.timing = SNIPER_TIMING_OPEN;
+        }
+     }
+
+   //--- 6. Calcul de l'entree precise
    signal.entry_price = CalculatePrecisionEntry(direction, signal.zone_type, zone_price);
    if(signal.entry_price <= 0)
       signal.entry_price = (direction == SIGNAL_BUY) ?
                             SymbolInfoDouble(_Symbol, SYMBOL_ASK) :
                             SymbolInfoDouble(_Symbol, SYMBOL_BID);
 
-   //--- 9. Technique d'entree
+   //--- 7. Technique d'entree
    signal.entry_technique = DetermineEntryTechnique(direction, signal.zone_type);
 
-   //--- 10. Calcul du SL structurel
+   //--- 8. Calcul du SL structurel
    signal.stop_loss = CalculateSniperSL(direction, signal.entry_price);
 
-   //--- 11. Calcul des TP (1R, 2R, 3R)
+   //--- v5: Si SL invalide, calculer un SL par defaut base sur l'ATR
+   if(signal.stop_loss <= 0 || MathAbs(signal.entry_price - signal.stop_loss) < _Point * MIN_SL_DISTANCE_PIPS)
+     {
+      double atr = 0;
+      if(m_volatility_engine != NULL) atr = m_volatility_engine.GetCurrentATR();
+      if(atr > 0)
+        {
+         double sl_distance = atr * 1.5;
+         if(direction == SIGNAL_BUY)
+            signal.stop_loss = NormalizeDouble(signal.entry_price - sl_distance, (int)SymbolInfoInteger(_Symbol, SYMBOL_DIGITS));
+         else
+            signal.stop_loss = NormalizeDouble(signal.entry_price + sl_distance, (int)SymbolInfoInteger(_Symbol, SYMBOL_DIGITS));
+        }
+      else
+        {
+         //--- Dernier recours: SL fixe de 30 pips
+         double fixed_sl = 30 * _Point * 10;
+         if(direction == SIGNAL_BUY)
+            signal.stop_loss = NormalizeDouble(signal.entry_price - fixed_sl, (int)SymbolInfoInteger(_Symbol, SYMBOL_DIGITS));
+         else
+            signal.stop_loss = NormalizeDouble(signal.entry_price + fixed_sl, (int)SymbolInfoInteger(_Symbol, SYMBOL_DIGITS));
+        }
+     }
+
+   //--- 9. Calcul des TP (1R, 2R, 3R)
    signal.tp1 = CalculateSniperTP(direction, signal.entry_price, signal.stop_loss, TP1_R_MULT);
    signal.tp2 = CalculateSniperTP(direction, signal.entry_price, signal.stop_loss, TP2_R_MULT);
    signal.tp3 = CalculateSniperTP(direction, signal.entry_price, signal.stop_loss, TP3_R_MULT);
 
-   //--- 12. Ratio R:R
+   //--- 10. Ratio R:R
    double risk = MathAbs(signal.entry_price - signal.stop_loss);
    double reward = MathAbs(signal.tp2 - signal.entry_price);
    signal.risk_reward = (risk > 0) ? reward / risk : 0;
 
-   //--- 13. Classification du signal
+   //--- v5: Si R:R < 1.0, recalculer les TP pour assurer au minimum 1.5R
+   if(signal.risk_reward < 1.0 && risk > 0)
+     {
+      signal.tp1 = CalculateSniperTP(direction, signal.entry_price, signal.stop_loss, 1.0);
+      signal.tp2 = CalculateSniperTP(direction, signal.entry_price, signal.stop_loss, 1.5);
+      signal.tp3 = CalculateSniperTP(direction, signal.entry_price, signal.stop_loss, 2.0);
+      signal.risk_reward = 1.5;
+     }
+
+   //--- 11. Classification du signal
    if(signal.sniper_score >= 95)
       signal.quality = SNIPER_QUALITY_DIAMOND;
    else if(signal.sniper_score >= 90)
@@ -936,38 +996,32 @@ SSniperSignal CTradeSniperEngine::HuntSniperSignal(ENUM_SIGNAL_TYPE direction)
    else
       signal.quality = SNIPER_QUALITY_REJECT;
 
-   //--- 14. Validation finale - CRITERES ASSOPLIS v4.3
-   //--- FIX v4.3: Structure 10/25 au lieu de 15/25 (trop strict pour backtest)
-   //--- FIX v4.3: Zone et timing ne bloquent plus completement
-   bool score_ok = (signal.sniper_score >= m_min_sniper_score);
-   bool rr_ok = (signal.risk_reward >= m_min_rr_ratio);
-   bool structure_ok = (signal.score_structure >= 10);  // FIX v4.3: 10 au lieu de 15
-   bool zone_ok = (signal.zone_type != SNIPER_ZONE_NONE);
-   bool timing_ok = (signal.timing != SNIPER_TIMING_NONE);
+   //--- 12. Validation finale v5 - ASSOPLIE
+   //--- v5: Seuil minimum = 30 (tres bas) au lieu de 70+
+   //--- Le score composite dans le pipeline principal fera le tri
+   bool score_ok = (signal.sniper_score >= 30);  // v5: Seuil tres bas, le composite decide
+   bool has_sl = (signal.stop_loss > 0);
+   bool has_entry = (signal.entry_price > 0);
 
-   //--- FIX v4.3: Score + R:R obligatoires, structure obligatoire
-   //--- Zone/timing: bonus mais pas bloquants (le score reflete deja la qualite)
-   signal.is_valid = score_ok && rr_ok && structure_ok;
+   signal.is_valid = score_ok && has_sl && has_entry;
 
-   //--- Si zone ou timing manquant, penaliser le score au lieu de bloquer
-   if(!zone_ok) signal.sniper_score -= 10;  // Pas de zone = -10 pts
-   if(!timing_ok) signal.sniper_score -= 5;   // Pas de timing = -5 pts
+   signal.confidence = (signal.sniper_score >= 90) ? 95.0 :
+                       (signal.sniper_score >= 80) ? 85.0 :
+                       (signal.sniper_score >= 70) ? 75.0 :
+                       (signal.sniper_score >= 50) ? 60.0 : 40.0;
 
-   //--- Re-verifier le score apres penalite
-   if(signal.sniper_score < m_min_sniper_score) signal.is_valid = false;
-   signal.confidence = (signal.sniper_score >= 90) ? 95.0 : (signal.sniper_score >= 80) ? 85.0 : 75.0;
-
-   //--- 15. Description
+   //--- 13. Description
    signal.description = StringFormat("Sniper %s | Score=%d (%s) | R:R=%.1f | Zone=%s | Timing=%s | Tech=%s",
                                       (direction == SIGNAL_BUY) ? "BUY" : "SELL",
                                       signal.sniper_score,
                                       (signal.quality == SNIPER_QUALITY_DIAMOND) ? "DIAMOND" :
                                       (signal.quality == SNIPER_QUALITY_GOLD) ? "GOLD" :
-                                      (signal.quality == SNIPER_QUALITY_SILVER) ? "SILVER" : "BRONZE",
+                                      (signal.quality == SNIPER_QUALITY_SILVER) ? "SILVER" :
+                                      (signal.quality == SNIPER_QUALITY_BRONZE) ? "BRONZE" : "WEAK",
                                       signal.risk_reward,
                                       (signal.zone_type == SNIPER_ZONE_CONFLUENCE) ? "Confluence" :
                                       (signal.zone_type == SNIPER_ZONE_OB) ? "OB" :
-                                      (signal.zone_type == SNIPER_ZONE_FVG) ? "FVG" : "Liq",
+                                      (signal.zone_type == SNIPER_ZONE_FVG) ? "FVG" : "None",
                                       (signal.timing == SNIPER_TIMING_OVERLAP) ? "Overlap" :
                                       (signal.timing == SNIPER_TIMING_KILLZONE) ? "KillZone" : "Session",
                                       (signal.entry_technique == ENTRY_LIMIT_OB) ? "LimitOB" :

@@ -5,11 +5,11 @@
 //| Full integration: Sniper + State Machine + Adaptive Risk         |
 //+------------------------------------------------------------------+
 #property copyright "Copyright 2024, YEHI OR Tech Solutions"
-#property version   "4.30"
-#property description "A2Sniper Trading v4.3 - Wall Street Level Trading System"
-#property description "Trade Sniper + Adaptive Risk + Position State Machine"
+#property version   "5.00"
+#property description "A2Sniper Trading v5.0 - Pipeline Score-Based System"
+#property description "v5: Scoring approach instead of sequential gates"
+#property description "No more 0-trade backtest - score drives decisions"
 #property description "SMC/ICT + Strategic Reversal + Smart Money"
-#property description "VSA Volume + Graduated Volatility + Liquidity Voids"
 #property description "80%+ Win Rate Target"
 
 //+------------------------------------------------------------------+
@@ -61,18 +61,18 @@ input bool            UseAdaptiveRisk = true;           // Utiliser le Risk Engi
 
 //--- Trade Sniper
 input group           "=== Trade Sniper Settings ==="
-input int             MinSniperScore = 90;              // Score sniper minimum (90=Gold, 95=Diamond)
-input double          MinRiskReward = 2.0;              // R:R minimum
-input bool            RequireKillzone = true;           // Exiger zone Kill Zone
-input bool            RequireStructure = true;          // Exiger structure alignee
-input bool            RequireInstitutional = true;      // Exiger empreinte institutionnelle
+input int             MinSniperScore = 70;              // Score sniper minimum (70=Bronze, 80=Silver, 90=Gold)
+input double          MinRiskReward = 1.5;              // R:R minimum (1.5 au lieu de 2.0)
+input bool            RequireKillzone = false;          // Exiger zone Kill Zone (desactive - score gre)
+input bool            RequireStructure = false;          // Exiger structure alignee (desactive - score gre)
+input bool            RequireInstitutional = false;      // Exiger empreinte institutionnelle (desactive - score gre)
 
 //--- Signal
 input group           "=== Signal Settings ==="
-input double          MinSignalScore = 80.0;            // Score AI minimum
-input int             MinSREScore = 85;                  // Score SRE minimum
-input bool            RequireSMEConfirmation = true;    // Confirmation Smart Money
-input bool            RequireSessionFilter = true;      // Filtre de session
+input double          MinSignalScore = 60.0;            // Score AI minimum (60 au lieu de 80)
+input int             MinSREScore = 65;                  // Score SRE minimum (65 au lieu de 85)
+input bool            RequireSMEConfirmation = false;   // Confirmation Smart Money (desactive - bonus score)
+input bool            RequireSessionFilter = false;     // Filtre de session (desactive - score gre)
 input bool            RequireNewsFilter = true;         // Filtre economique
 
 //--- Trade Management (State Machine)
@@ -150,11 +150,11 @@ int               g_last_sniper_score = 0;
 int OnInit()
   {
    Print("========================================");
-   Print("  A2Sniper Trading v4.3 - Wall Street Level");
-   Print("  v4.3: Pipeline assoupli pour backtest");
-   Print("  Range filter: penalite au lieu de blocage");
-   Print("  Kill Zone: London/NY sessions acceptees");
-   Print("  Moteurs: 5/9 confirmation, seuils baisses");
+   Print("  A2Sniper Trading v5.0 - Score-Based Pipeline");
+   Print("  v5: Scoring approach - no more sequential gates");
+   Print("  Institutional footprint = score modifier, not gate");
+   Print("  SME/Session/KillZone = bonus, not requirement");
+   Print("  Sniper>=70, AI>=60, SRE>=65, R:R>=1.5");
    Print("========================================");
 
    //--- 1. Initialiser le Risk Manager
@@ -348,24 +348,46 @@ void OnTick()
   }
 
 //+------------------------------------------------------------------+
-//| Analyser et Executer - PIPELINE WALL STREET                      |
+//| Analyser et Executer - PIPELINE v5                               |
 //+------------------------------------------------------------------+
 void AnalyzeAndExecute()
   {
    SMarketStructure m15_struct = g_market_structure.GetStructure(LTF_Timeframe);
 
-   //--- Analyser les deux directions
-   if(m15_struct.direction == MARKET_DIRECTION_BULLISH ||
-      m15_struct.last_event == STRUCTURE_CHOCH_BULLISH ||
-      m15_struct.last_event == STRUCTURE_MSS_BULLISH)
+   //--- v5: Assouplir la condition de direction
+   //--- Ancien code: exigeait direction BULLISH/BEARISH sur M15
+   //--- Nouveau: accepte aussi les CHoCH/MSS et meme le RANGE si le score composite est bon
+   //--- Le score composite dans TryExecuteSniperSignal fera le tri final
+
+   //--- Analyser ACHATS (direction haussiere OU signal de retournement haussier)
+   bool buy_allowed = (m15_struct.direction == MARKET_DIRECTION_BULLISH ||
+                       m15_struct.last_event == STRUCTURE_CHOCH_BULLISH ||
+                       m15_struct.last_event == STRUCTURE_MSS_BULLISH ||
+                       m15_struct.has_bos || m15_struct.has_choch || m15_struct.has_mss);
+   //--- v5: Toujours analyser les deux directions - le score composite decidra
+   //--- Si le marché est en range, on peut trader dans les deux sens
+   if(m15_struct.direction == MARKET_DIRECTION_RANGE)
+     {
+      buy_allowed = true;  // En range, on autorise les deux sens
+     }
+
+   //--- Analyser VENTES (direction baissiere OU signal de retournement baissier)
+   bool sell_allowed = (m15_struct.direction == MARKET_DIRECTION_BEARISH ||
+                        m15_struct.last_event == STRUCTURE_CHOCH_BEARISH ||
+                        m15_struct.last_event == STRUCTURE_MSS_BEARISH ||
+                        m15_struct.has_bos || m15_struct.has_choch || m15_struct.has_mss);
+   if(m15_struct.direction == MARKET_DIRECTION_RANGE)
+     {
+      sell_allowed = true;  // En range, on autorise les deux sens
+     }
+
+   if(buy_allowed)
      {
       if(CheckMultiTimeframeAlignment(SIGNAL_BUY))
          TryExecuteSniperSignal(SIGNAL_BUY);
      }
 
-   if(m15_struct.direction == MARKET_DIRECTION_BEARISH ||
-      m15_struct.last_event == STRUCTURE_CHOCH_BEARISH ||
-      m15_struct.last_event == STRUCTURE_MSS_BEARISH)
+   if(sell_allowed)
      {
       if(CheckMultiTimeframeAlignment(SIGNAL_SELL))
          TryExecuteSniperSignal(SIGNAL_SELL);
@@ -373,7 +395,8 @@ void AnalyzeAndExecute()
   }
 
 //+------------------------------------------------------------------+
-//| Verifier l'alignement multi-timeframe                            |
+//| Verifier l'alignement multi-timeframe v5                          |
+//| v5: Assoupli - si HTF neutre, on n' bloque pas                   |
 //+------------------------------------------------------------------+
 bool CheckMultiTimeframeAlignment(ENUM_SIGNAL_TYPE direction)
   {
@@ -381,6 +404,8 @@ bool CheckMultiTimeframeAlignment(ENUM_SIGNAL_TYPE direction)
    ENUM_MARKET_DIRECTION h1_dir = g_market_structure.GetDirection(MTF_Timeframe);
 
    if(direction == SIGNAL_BUY)
+      //--- v5: Ne bloquer que si H4 ou H1 est explicitement BEARISH
+      //--- RANGE sur HTF n'est plus bloquant
       return (h4_dir != MARKET_DIRECTION_BEARISH) && (h1_dir != MARKET_DIRECTION_BEARISH);
 
    if(direction == SIGNAL_SELL)
@@ -390,102 +415,124 @@ bool CheckMultiTimeframeAlignment(ENUM_SIGNAL_TYPE direction)
   }
 
 //+------------------------------------------------------------------+
-//| Tenter d'executer un signal sniper v4                             |
-//| Pipeline v4: Sniper . AI Score v4 . Range Filter . SRE .     |
-//| SME . Session . OB MTF . OrderBook . Correlation . Risk     |
+//| Tenter d'executer un signal sniper v5                             |
+//| Pipeline v5: SCORING APPROACH - le score decide, pas les portes   |
+//|                                                                    |
+//| Ancienne approche (v4): 15+ portes sequentielles ET                |
+//| = probabilite combinee quasi nulle = 0 trades                     |
+//|                                                                    |
+//| Nouvelle approche (v5): Score composite                           |
+//| = score_sniper*0.30 + score_ai*0.35 + score_sre*0.20             |
+//|   + bonus_sme*5 + bonus_session*5 + bonus_inst*5                  |
+//|   - penalty_range - penalty_no_zone                               |
+//| Si score_composite >= MIN_COMPOSITE_SCORE (60) => trade           |
 //+------------------------------------------------------------------+
+#define MIN_COMPOSITE_SCORE  60.0   // Score composite minimum pour trader
+
 void TryExecuteSniperSignal(ENUM_SIGNAL_TYPE direction)
   {
-   //--- 1. Verifier le spread
+   //--- 1. Verifier le spread (seul filtre dur - on ne negocie pas un spread fou)
    double spread = SymbolInfoInteger(_Symbol, SYMBOL_SPREAD) * _Point;
-   if(spread > MAX_SPREAD_POINTS * _Point) return;
-
-   //--- 2. PHASE RANGE FILTER: Penaliser si marche en range (pas bloquer)
-   //--- FIX v4.3: Ne plus bloquer completement - le range penalty est deja dans le score AI
-   //--- L'ancien blocage total empechait TOUT trade car ADX<20 est frequent sur EURUSD M15
-   bool is_ranging = g_ai_scoring.IsMarketRanging();
-   if(is_ranging)
+   if(spread > MAX_SPREAD_POINTS * _Point)
      {
-      Print("A2Sniper Trading: Marche en range detecte - score AI sera penalise (range_penalty)");
-      //--- Ne pas retourner: laisser le signal passer avec penalite dans le score AI
-      //--- Si le score reste assez haut malgre la penalite, c'est un signal exceptionnel
-     }
-
-   //--- 3. PHASE SNIPER: Chasser le signal de precision
-   SSniperSignal sniper = g_sniper_engine.HuntSniperSignal(direction);
-   g_last_sniper_score = sniper.sniper_score;
-
-   if(!sniper.is_valid)
-     {
-      //--- FIX v4.3: Diagnostic - pourquoi le signal sniper est rejete
-      Print("A2Sniper Trading: Signal sniper invalide (Score=", sniper.sniper_score,
-            " Zone=", sniper.zone_type, " Timing=", sniper.timing,
-            " R:R=", DoubleToString(sniper.risk_reward, 1), ")");
+      Print("A2Sniper v5: Spread trop eleve - signal ignore");
       return;
      }
 
-   //--- 4. PHASE AI SCORING v4: Confirmation avec scoring negatif + regime
+   //--- 2. PHASE SNIPER: Calculer le score sniper (sans portes bloquantes)
+   //--- v5: HuntSniperSignal calcule le score meme si is_valid=false
+   //--- L'ancien code retournait ici si is_valid=false = perte totale du signal
+   SSniperSignal sniper = g_sniper_engine.HuntSniperSignal(direction);
+   g_last_sniper_score = sniper.sniper_score;
+
+   //--- v5: Si le sniper n'a meme pas calcule de score, on abandonne
+   if(sniper.sniper_score <= 0)
+     {
+      Print("A2Sniper v5: Score sniper=0 - aucun signal detecte");
+      return;
+     }
+
+   //--- 3. PHASE AI SCORING: Calculer le score AI
    SAIScoreV4 ai_score = g_ai_scoring.CalculateScore(direction);
    g_last_score = ai_score.total_score;
    g_last_signal_direction = (int)direction;
 
-   if(!ai_score.meets_threshold)
+   //--- 4. PHASE SRE: Score Strategic Reversal
+   SStrategicReversalSignal sre_signal = g_ai_scoring.GetLastSRESignal();
+
+   //--- 5. BONUS/MALUS: Verifier les confirmations (bonus, pas portes)
+   bool has_sme = g_smart_money.HasSmartMoneyConfirmation(direction);
+   bool is_optimal_session = g_session_engine.IsOptimalTradingTime();
+   bool is_killzone = g_session_engine.IsKillZone();
+   bool has_institutional = (sniper.zone_type != SNIPER_ZONE_NONE);
+   bool has_good_timing = (sniper.timing != SNIPER_TIMING_NONE);
+
+   //--- 6. CALCULER LE SCORE COMPOSITE v5
+   //--- Pondération: Sniper 30%, AI 35%, SRE 20%, Bonus 15%
+   double composite = 0.0;
+
+   //--- Score sniper normalise (0-100 -> 0-30 pts)
+   composite += (sniper.sniper_score / 100.0) * 30.0;
+
+   //--- Score AI normalise (peut etre negatif -> clamp a 0-35 pts)
+   double ai_normalized = MathMax(0.0, MathMin(100.0, ai_score.total_score));
+   composite += (ai_normalized / 100.0) * 35.0;
+
+   //--- Score SRE normalise (0-100 -> 0-20 pts)
+   double sre_normalized = MathMax(0.0, MathMin(100.0, (double)sre_signal.total_score));
+   composite += (sre_normalized / 100.0) * 20.0;
+
+   //--- Bonus de confirmation (+5 pts chacun)
+   if(has_sme)              composite += 5.0;    // SME confirme
+   if(is_optimal_session)   composite += 5.0;    // Session optimale
+   if(has_institutional)    composite += 5.0;    // Zone institutionnelle (OB/FVG/Liq)
+   if(has_good_timing)      composite += 3.0;    // Bon timing (KillZone/Overlap)
+   if(is_killzone)          composite += 2.0;    // Kill Zone active
+
+   //--- Penalites (au lieu de portes bloquantes)
+   if(!has_institutional)   composite -= 10.0;   // Pas de zone institutionnelle
+   if(!has_good_timing)     composite -= 3.0;    // Pas de bon timing
+   if(!has_sme)             composite -= 5.0;    // Pas de confirmation Smart Money
+
+   //--- Range penalty (deja dans le score AI, mais on le renforce)
+   if(ai_score.range_penalty < -15.0)  composite -= 5.0;
+
+   //--- Session asiatique sans paire asiatique = penalite forte
+   if(g_session_engine.IsAsianSession())
      {
-      Print("A2Sniper Trading: Score AI sous seuil (", DoubleToString(ai_score.total_score, 1),
-            " < ", g_ai_scoring.GetMinThreshold(), " | Conf=", ai_score.confirming_engines, "/9)");
-      return;
-     }
-   if(!g_ai_scoring.MeetsAllCriteria(direction))
-     {
-      Print("A2Sniper Trading: Criteres non remplis (SRE=", ai_score.raw_sre,
-            " SMC=", DoubleToString(ai_score.raw_smc, 0),
-            " Liq=", DoubleToString(ai_score.raw_liq, 0),
-            " Vol=", DoubleToString(ai_score.raw_vol, 0),
-            " Session=", DoubleToString(ai_score.session_bonus, 0), ")");
-      return;
+      string sym = _Symbol;
+      if(StringFind(sym, "JPY") < 0 && StringFind(sym, "AUD") < 0 && StringFind(sym, "NZD") < 0)
+         composite -= 10.0;   // Asie hors paires asiatiques
      }
 
-   //--- v4: Verifier que le score total est positif (scoring negatif peut rendre negatif)
+   //--- Score total positif obligatoire
    if(ai_score.total_score <= 0)
      {
-      Print("A2Sniper Trading: Score negatif - signal rejete (", DoubleToString(ai_score.total_score, 1), ")");
+      Print("A2Sniper v5: Score AI negatif (", DoubleToString(ai_score.total_score, 1), ") - signal rejete");
       return;
      }
 
-   //--- v4: Verifier qu'il y a assez de moteurs confirmants (6/9 minimum)
-   if(ai_score.confirming_engines < 6)
+   //--- 7. DECISION: Le score composite decide
+   Print("A2Sniper v5: Composite=", DoubleToString(composite, 1), "/", MIN_COMPOSITE_SCORE,
+         " | Sniper=", sniper.sniper_score, " AI=", DoubleToString(ai_score.total_score, 1),
+         " SRE=", sre_signal.total_score,
+         " | SME=", has_sme ? "Y" : "N", " Session=", is_optimal_session ? "Y" : "N",
+         " Inst=", has_institutional ? "Y" : "N", " Timing=", has_good_timing ? "Y" : "N");
+
+   if(composite < MIN_COMPOSITE_SCORE)
      {
-      Print("A2Sniper Trading: Pas assez de confirmations (", ai_score.confirming_engines, "/9)");
+      Print("A2Sniper v5: Score composite insuffisant (", DoubleToString(composite, 1), " < ", MIN_COMPOSITE_SCORE, ")");
       return;
      }
 
-   //--- 5. PHASE SRE: Verification du Strategic Reversal
-   SStrategicReversalSignal sre_signal = g_ai_scoring.GetLastSRESignal();
-   if(sre_signal.total_score < MinSREScore) return;
-
-   //--- 6. PHASE SME: Confirmation Smart Money
-   if(RequireSMEConfirmation && !g_smart_money.HasSmartMoneyConfirmation(direction))
-      return;
-
-   //--- 7. PHASE SESSION: Filtre de session v4.3 (assoupli pour backtest)
-   if(RequireSessionFilter && !g_session_engine.IsOptimalTradingTime())
+   //--- 8. Verifier R:R minimum (seuil bas = 1.5)
+   if(sniper.risk_reward < MinRiskReward)
      {
-      //--- FIX v4.3: Abaisser le seuil hors session (85 au lieu de 90)
-      //--- Beaucoup de bons signaux apparaissent en debut/fin de session
-      if(ai_score.total_score < 85.0)
-        {
-         Print("A2Sniper Trading: Hors session optimale + score insuffisant (", DoubleToString(ai_score.total_score, 1), " < 85)");
-         return;
-        }
-      //--- FIX v4.3: Session asiatique - bloquer sauf score tres eleve (90 au lieu de 95)
-      if(ai_score.session_bonus < -10.0 && ai_score.total_score < 90.0)
-        {
-         Print("A2Sniper Trading: Session asiatique - score insuffisant (", DoubleToString(ai_score.total_score, 1), " < 90)");
-         return;
-        }
+      Print("A2Sniper v5: R:R insuffisant (", DoubleToString(sniper.risk_reward, 1), " < ", MinRiskReward, ")");
+      return;
      }
 
-   //--- 8. PHASE ORDER BOOK: Validation du carnet d'ordres
+   //--- 9. PHASE ORDER BOOK: Validation du carnet d'ordres (bonus, pas bloqueur)
    double book_sl = sniper.stop_loss;
    if(EnableOrderBook && g_order_book.IsAvailable())
      {
@@ -495,76 +542,105 @@ void TryExecuteSniperSignal(ENUM_SIGNAL_TYPE direction)
 
       if(RequireBookConfirmation && !book_val.liquidity_ok)
         {
-         Print("A2Sniper Trading: OrderBook REJET - Liquidite insuffisante (", book_val.rejection_reason, ")");
+         Print("A2Sniper v5: OrderBook REJET - Liquidite insuffisante (", book_val.rejection_reason, ")");
          return;
         }
 
       if(RequireBookConfirmation && book_val.confidence_score < 30.0)
         {
-         Print("A2Sniper Trading: OrderBook REJET - Confiance trop faible (", DoubleToString(book_val.confidence_score, 1), "/100)");
+         Print("A2Sniper v5: OrderBook REJET - Confiance trop faible (", DoubleToString(book_val.confidence_score, 1), "/100)");
          return;
         }
 
       if(UseBookSLAdjust && book_val.wall_sl_adjust > 0 && book_val.wall_sl_adjust != sniper.stop_loss)
         {
          book_sl = book_val.wall_sl_adjust;
-         Print("A2Sniper Trading: OrderBook SL ajuste - SL original=", sniper.stop_loss,
+         Print("A2Sniper v5: OrderBook SL ajuste - SL original=", sniper.stop_loss,
                " . SL carnet=", book_sl);
         }
-
-      Print("A2Sniper Trading: OrderBook Validation - Confiance=", DoubleToString(book_val.confidence_score, 1),
-            "/100 | Imbalance=", g_order_book.GetImbalanceName(),
-            " | Liquidite=", book_val.liquidity_ok ? "OK" : "FAIBLE",
-            " | Mur=", book_val.wall_supports ? "OUI" : "NON");
      }
 
-   //--- 9. PHASE RISK: Verification du risque adaptatif
+   //--- 10. PHASE RISK: Verification du risque adaptatif
    bool can_trade;
    if(UseAdaptiveRisk)
       can_trade = g_adaptive_risk.CanOpenTrade(direction);
    else
       can_trade = g_risk_manager.CanOpenTrade(direction);
 
-   if(!can_trade) return;
+   if(!can_trade)
+     {
+      Print("A2Sniper v5: Risk Manager bloque le trade");
+      return;
+     }
 
-   //--- 10. Verifier qu'on n'a pas deja une position dans cette direction
+   //--- 11. Verifier qu'on n'a pas deja une position dans cette direction
    if(HasOpenPositionInDirection(direction)) return;
 
-   //--- 11. v4: Filtre de correlation inter-devises
+   //--- 12. Filtre de correlation inter-devises
    if(HasCorrelatedPosition(direction)) return;
 
-   //--- 12. Calculer le lot adaptatif
+   //--- 13. Calculer le lot adaptatif
    double sl_distance_pips = MathAbs(sniper.entry_price - book_sl) / _Point;
+
+   //--- v5: Securiser le SL - si SL trop proche, elargir
+   if(sl_distance_pips < MIN_SL_DISTANCE_PIPS)
+     {
+      double atr = g_volatility_engine.GetCurrentATR();
+      if(atr > 0)
+         sl_distance_pips = (atr * 1.5) / _Point;
+      else
+         sl_distance_pips = MIN_SL_DISTANCE_PIPS;
+     }
+
    double lot;
    if(UseAdaptiveRisk)
       lot = g_adaptive_risk.CalculateAdaptiveLotSize(sl_distance_pips);
    else
       lot = g_risk_manager.CalculateLotSize(sl_distance_pips);
 
-   //--- 13. Verifier la marge
+   //--- v5: Forcer un lot minimum pour les petits comptes
+   double min_lot = SymbolInfoDouble(_Symbol, SYMBOL_VOLUME_MIN);
+   if(lot < min_lot && lot > 0)
+     {
+      Print("A2Sniper v5: Lot calcule (", lot, ") < min_lot (", min_lot, ") - ajustement au minimum");
+      lot = min_lot;
+     }
+
+   //--- v5: Si lot=0, c'est que le calcul a echoue - essayer avec le minimum
+   if(lot <= 0)
+     {
+      lot = min_lot;
+      Print("A2Sniper v5: Lot=0 detecte - utilisation du lot minimum (", lot, ")");
+     }
+
+   //--- 14. Verifier la marge
    bool has_margin;
    if(UseAdaptiveRisk)
       has_margin = g_adaptive_risk.HasEnoughMargin(lot);
    else
       has_margin = g_risk_manager.HasEnoughMargin(lot);
 
-   if(!has_margin) return;
+   if(!has_margin)
+     {
+      Print("A2Sniper v5: Marge insuffisante pour lot=", lot);
+      return;
+     }
 
-   //--- 14. EXECUTION
+   //--- 15. EXECUTION
    Print("========================================");
-   Print("A2Sniper Trading v4: SIGNAL SNIPER ", (direction == SIGNAL_BUY) ? "ACHAT" : "VENTE");
+   Print("A2Sniper Trading v5: SIGNAL ", (direction == SIGNAL_BUY) ? "ACHAT" : "VENTE");
+   Print("  Composite Score: ", DoubleToString(composite, 1), "/", MIN_COMPOSITE_SCORE);
    Print("  Sniper Score: ", sniper.sniper_score, "/100 (", GetSniperQualityName(sniper.quality), ")");
-   Print("  AI Score v4: ", DoubleToString(ai_score.total_score, 1), "/100 (Conf: ", ai_score.confirming_engines, "/9)");
+   Print("  AI Score: ", DoubleToString(ai_score.total_score, 1), "/100 (Conf: ", ai_score.confirming_engines, "/9)");
    Print("  SRE Score: ", sre_signal.total_score, "/100");
-   Print("  R:R: ", sniper.risk_reward);
-   Print("  Zone: ", GetSniperZoneName(sniper.zone_type));
-   Print("  Timing: ", GetSniperTimingName(sniper.timing));
-   Print("  Entry Tech: ", GetEntryTechName(sniper.entry_technique));
-   Print("  Risk Eff: ", UseAdaptiveRisk ? g_adaptive_risk.GetEffectiveRiskPercent() : g_risk_manager.GetEffectiveRiskPercent(), "%");
+   Print("  R:R: ", DoubleToString(sniper.risk_reward, 1));
+   Print("  Zone: ", GetSniperZoneName(sniper.zone_type), " | Timing: ", GetSniperTimingName(sniper.timing));
+   Print("  Entry: ", GetEntryTechName(sniper.entry_technique));
+   Print("  SME: ", has_sme ? "CONFIRMED" : "NO", " | Session: ", is_optimal_session ? "OPTIMAL" : "SUBOPTIMAL");
+   Print("  Risk: ", UseAdaptiveRisk ? g_adaptive_risk.GetEffectiveRiskPercent() : g_risk_manager.GetEffectiveRiskPercent(), "%");
    Print("  Range Penalty: ", DoubleToString(ai_score.range_penalty, 1));
    Print("  Session Bonus: ", DoubleToString(ai_score.session_bonus, 1));
-   if(book_sl != sniper.stop_loss)
-      Print("  OrderBook SL: ", sniper.stop_loss, " . ", book_sl, " (ajuste mur d'ordres)");
+   Print("  Lot: ", lot, " | SL dist: ", DoubleToString(sl_distance_pips, 0), " pts");
    Print("========================================");
 
    int ticket = -1;
@@ -578,7 +654,6 @@ void TryExecuteSniperSignal(ENUM_SIGNAL_TYPE direction)
    //--- Enregistrer dans les gestionnaires
    if(ticket > 0)
      {
-      //--- v4: Register in PositionStateMachine only
       g_position_sm.RegisterPosition(ticket, direction, sniper.entry_price,
                                       book_sl, sniper.tp1, sniper.tp2, sniper.tp3,
                                       lot, ai_score.total_score, sniper.sniper_score);
@@ -592,17 +667,21 @@ void TryExecuteSniperSignal(ENUM_SIGNAL_TYPE direction)
          g_dashboard.DrawTradeLevels(sniper.entry_price, book_sl,
                                       sniper.tp1, sniper.tp2, sniper.tp3, direction);
 
-      Print("A2Sniper Trading v4: Trade sniper execute - Ticket=", ticket, " Lot=", lot,
-            " SniperScore=", sniper.sniper_score, " AI=", DoubleToString(ai_score.total_score, 1));
+      Print("A2Sniper v5: Trade execute - Ticket=", ticket, " Lot=", lot,
+            " Composite=", DoubleToString(composite, 1),
+            " Sniper=", sniper.sniper_score, " AI=", DoubleToString(ai_score.total_score, 1));
 
-      string notif = StringFormat("A2Sniper v4 %s | Sniper=%d(%s) AI=%.0f SRE=%d R:R=%.1f Conf=%d/9",
+      string notif = StringFormat("A2Sniper v5 %s | Comp=%.0f Sniper=%d AI=%.0f SRE=%d R:R=%.1f",
                                    (direction == SIGNAL_BUY) ? "BUY" : "SELL",
-                                   sniper.sniper_score, GetSniperQualityName(sniper.quality),
-                                   ai_score.total_score, sre_signal.total_score, sniper.risk_reward,
-                                   ai_score.confirming_engines);
+                                   composite, sniper.sniper_score, ai_score.total_score,
+                                   sre_signal.total_score, sniper.risk_reward);
       SendNotification(notif);
-      Alert("A2Sniper Trading v4: ", (direction == SIGNAL_BUY) ? "ACHAT" : "VENTE",
-            " Sniper=", sniper.sniper_score);
+      Alert("A2Sniper Trading v5: ", (direction == SIGNAL_BUY) ? "ACHAT" : "VENTE",
+            " Composite=", DoubleToString(composite, 0));
+     }
+   else
+     {
+      Print("A2Sniper v5: ECHEC execution - ticket=", ticket, " lot=", lot);
      }
   }
 

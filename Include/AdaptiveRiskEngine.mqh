@@ -222,16 +222,14 @@ bool CAdaptiveRiskEngine::Initialize(double base_risk, double daily_dd, double w
   {
    m_base_risk_pct = (base_risk > 0 && base_risk <= 5.0) ? base_risk : DEFAULT_RISK_PERCENT;
 
-   //--- FIX v4.2: Adaptive risk for small accounts (200-500 USD)
+   //--- FIX v5: Ne plus reduire le risque pour les petits comptes
+   //--- Le lot minimum (0.01) est le filet de securite naturel
    double equity = AccountInfoDouble(ACCOUNT_EQUITY);
    if(equity > 0 && equity < 500.0)
      {
-      //--- Scale down risk proportionally for small accounts
-      //--- 200 USD -> 0.4% max, 300 USD -> 0.6%, 500 USD -> 1.0%
-      double adaptive_risk = MathMax(0.3, (equity / 500.0) * m_base_risk_pct);
-      m_base_risk_pct = MathMin(m_base_risk_pct, adaptive_risk);
+      //--- v5: Garder le risque de base intact
       Print("A2Sniper ARE: Small account detected (", DoubleToString(equity, 0),
-            " USD) - Risk adjusted to ", DoubleToString(m_base_risk_pct, 1), "%");
+            " USD) - Risk kept at ", DoubleToString(m_base_risk_pct, 1), "%");
      }
 
    m_max_daily_dd = (daily_dd > 0 && daily_dd <= 20.0) ? daily_dd : DEFAULT_DAILY_DD;
@@ -670,11 +668,20 @@ double CAdaptiveRiskEngine::CalculateAdaptiveLotSize(double sl_distance_pips) co
    double lot_step = SymbolInfoDouble(_Symbol, SYMBOL_VOLUME_STEP);
 
    lot_size = MathFloor(lot_size / lot_step) * lot_step;
-   lot_size = MathMax(lot_size, min_lot);
+
+   //--- v5: Forcer le lot minimum
+   if(lot_size < min_lot)
+      lot_size = min_lot;
+
    lot_size = MathMin(lot_size, max_lot);
 
    double max_lot_exposure = (balance * m_max_exposure_pct / 100.0) /
                               (iClose(_Symbol, PERIOD_CURRENT, 0) * tick_value / tick_size);
+
+   //--- v5: Ne pas laisser l'exposition reduire en dessous du minimum
+   if(max_lot_exposure < min_lot)
+      max_lot_exposure = min_lot;
+
    lot_size = MathMin(lot_size, max_lot_exposure);
 
    return NormalizeDouble(lot_size, 2);
