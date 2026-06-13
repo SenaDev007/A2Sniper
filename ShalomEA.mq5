@@ -1,237 +1,745 @@
 //+------------------------------------------------------------------+
 //|                                                      ShalomEA.mq5 |
 //|                        Copyright 2024, YEHI OR Tech Solutions    |
+//| A2Sniper Ultimate v4.0 - Wall Street Level Trading System        |
+//| Full integration: Sniper + State Machine + Adaptive Risk         |
 //+------------------------------------------------------------------+
 #property copyright "Copyright 2024, YEHI OR Tech Solutions"
-#property version   "1.00"
-#property description "Shalom EA - SystÃ¨me intelligent 95% - 10 trades/mois"
+#property version   "4.00"
+#property description "Shalom EA v4.0 - Wall Street Level Trading System"
+#property description "Trade Sniper + Adaptive Risk + Position State Machine"
+#property description "SMC/ICT + Strategic Reversal + Smart Money"
+#property description "95%+ Reliability Target"
 
 //+------------------------------------------------------------------+
-//| Inclusions                                                       |
+//| Includes - Full Ultimate Architecture                            |
 //+------------------------------------------------------------------+
-#include <Trade\Trade.mqh>
-#include <Trade\PositionInfo.mqh>
-#include <Trade\SymbolInfo.mqh>
-#include <Trade\AccountInfo.mqh>
-#include "Include\PatternDetector.mqh"
-#include "Include\HeikinAshiCalculator.mqh"
+#include "Include\CommonTypes.mqh"
+#include "Include\MarketStructureEngine.mqh"
+#include "Include\OrderBlockEngine.mqh"
+#include "Include\FVGEngine.mqh"
+#include "Include\LiquidityEngine.mqh"
+#include "Include\SessionEngine.mqh"
+#include "Include\VolumeEngine.mqh"
+#include "Include\VolatilityEngine.mqh"
+#include "Include\StrategicReversalEngine.mqh"
+#include "Include\SmartMoneyEngine.mqh"
+#include "Include\ICTEngine.mqh"
+#include "Include\AIScoringEngine.mqh"
+#include "Include\RiskManager.mqh"
+#include "Include\AdaptiveRiskEngine.mqh"
+#include "Include\TradeExecutor.mqh"
+#include "Include\TradeManager.mqh"
+#include "Include\PositionStateMachine.mqh"
+#include "Include\TradeSniperEngine.mqh"
+#include "Include\DashboardManager.mqh"
+#include "Include\StatisticsDatabase.mqh"
+#include "Include\NewsFilterEngine.mqh"
+#include "Include\MachineLearningEngine.mqh"
+#include "Include\BacktestIntelligenceEngine.mqh"
 
 //+------------------------------------------------------------------+
-//| ParamÃ¨tres d'entrÃ©e                                             |
+//| Parametres d'entree                                              |
 //+------------------------------------------------------------------+
-input int      InpFastMAPeriod = 50;        // PÃ©riode MA rapide
-input int      InpSlowMAPeriod = 200;       // PÃ©riode MA lente
-input double   InpRiskPercent = 2.0;        // Pourcentage de risque
-input double   InpLotSize = 0.1;            // Taille du lot
-input int      InpMaxPositions = 1;         // Positions max
-input bool     InpUseTrailingStop = true;   // Trailing stop
-input int      InpTrailingStopPips = 50;    // Pips trailing stop
+
+//--- General
+input group           "=== General Settings ==="
+input bool            EnableAutoTrading = true;        // Activer le trading automatique
+input ulong           MagicNumber = A2SNIPER_MAGIC;    // Numero magique
+input int             GMT_Offset = 0;                   // Decalage GMT du broker
+
+//--- Risk Management (Adaptatif)
+input group           "=== Adaptive Risk Management ==="
+input double          RiskPercent = 1.0;                // Risque de base par trade (%)
+input double          MaxDailyDD = 5.0;                 // Drawdown journalier max (%)
+input double          MaxWeeklyDD = 10.0;               // Drawdown hebdomadaire max (%)
+input double          MaxMonthlyDD = 20.0;              // Drawdown mensuel max (%)
+input int             MaxPositions = 3;                 // Positions simultanees max
+input int             MaxDailyTrades = 5;               // Maximum trades par jour
+input bool            UseAdaptiveRisk = true;           // Utiliser le Risk Engine Adaptatif
+
+//--- Trade Sniper
+input group           "=== Trade Sniper Settings ==="
+input int             MinSniperScore = 90;              // Score sniper minimum (90=Gold, 95=Diamond)
+input double          MinRiskReward = 2.0;              // R:R minimum
+input bool            RequireKillzone = true;           // Exiger zone Kill Zone
+input bool            RequireStructure = true;          // Exiger structure alignee
+input bool            RequireInstitutional = true;      // Exiger empreinte institutionnelle
+
+//--- Signal
+input group           "=== Signal Settings ==="
+input double          MinSignalScore = 80.0;            // Score AI minimum
+input int             MinSREScore = 85;                  // Score SRE minimum
+input bool            RequireSMEConfirmation = true;    // Confirmation Smart Money
+input bool            RequireSessionFilter = true;      // Filtre de session
+input bool            RequireNewsFilter = true;         // Filtre economique
+
+//--- Trade Management (State Machine)
+input group           "=== Position State Machine ==="
+input bool            EnableBreakEven = true;           // Break Even dynamique
+input bool            EnableTrailingStop = true;        // Trailing Stop progressif
+input bool            EnablePartialClose = true;        // Fermeture partielle TP1/TP2/TP3
+input bool            EnableStructuralSL = true;        // SL ajuste sur structure
+input ENUM_TRAILING_MODE TrailingMode = TRAILING_ATR;  // Mode Trailing
+
+//--- Timeframes
+input group           "=== Timeframe Settings ==="
+input ENUM_TIMEFRAMES HTF_Timeframe = PERIOD_H4;       // Timeframe superieur
+input ENUM_TIMEFRAMES MTF_Timeframe = PERIOD_H1;       // Timeframe moyen
+input ENUM_TIMEFRAMES LTF_Timeframe = PERIOD_M15;      // Timeframe execution
+
+//--- Dashboard
+input group           "=== Dashboard ==="
+input bool            EnableDashboard = true;           // Afficher le dashboard
 
 //+------------------------------------------------------------------+
-//| Variables globales                                              |
+//| Objets globaux                                                   |
 //+------------------------------------------------------------------+
-CPatternDetector* pattern_detector = NULL;
-CHeikinAshiCalculator* ha_calculator = NULL;
-double ema_data[];
-double volume_buffer[];
-int ema_handle;
-int volume_handle;
+//--- Moteurs d'analyse
+CMarketStructureEngine  g_market_structure;
+COrderBlockEngine       g_order_blocks;
+CFVGEngine              g_fvg_engine;
+CLiquidityEngine        g_liquidity_engine;
+CSessionEngine          g_session_engine;
+CVolumeEngine           g_volume_engine;
+CVolatilityEngine       g_volatility_engine;
+
+//--- Moteurs composites
+CStrategicReversalEngine g_sre;
+CSmartMoneyEngine       g_smart_money;
+CICTEngine              g_ict_engine;
+CAIScoringEngine        g_ai_scoring;
+
+//--- Gestion du risque
+CRiskManager            g_risk_manager;          // Risk Manager classique
+CAdaptiveRiskEngine     g_adaptive_risk;         // Risk Engine Adaptatif (Wall Street)
+
+//--- Execution et gestion
+CTradeExecutor          g_trade_executor;
+CTradeManager           g_trade_manager;          // Trade Manager classique
+CPositionStateMachine   g_position_sm;            // Position State Machine (Wall Street)
+
+//--- Trade Sniper
+CTradeSniperEngine      g_sniper_engine;
+
+//--- Support
+CDashboardManager       g_dashboard;
+CStatisticsDatabase     g_statistics;
+CNewsFilterEngine       g_news_filter;
+CMachineLearningEngine  g_ml_engine;
+CBacktestIntelligenceEngine g_bt_intelligence;
+
+//--- Etat global
+bool              g_all_initialized = false;
+datetime          g_last_analysis_time = 0;
+int               g_last_signal_direction = 0;
+double            g_last_score = 0;
+int               g_ticks_processed = 0;
+int               g_last_sniper_score = 0;
 
 //+------------------------------------------------------------------+
-//| Fonction d'initialisation                                       |
+//| Initialisation de l'Expert                                       |
 //+------------------------------------------------------------------+
 int OnInit()
-{
-   // Initialisation des objets
-   pattern_detector = new CPatternDetector();
-   ha_calculator = new CHeikinAshiCalculator();
-   
-   if(pattern_detector == NULL || ha_calculator == NULL)
-   {
-      Print("Erreur: Impossible de crÃ©er les objets");
-      return(INIT_FAILED);
-   }
-   
-   // Initialisation du dÃ©tecteur de patterns
-   pattern_detector.Initialize(0.3, 1.5, 1.5);
-   
-   // CrÃ©ation des handles
-   ema_handle = iMA(_Symbol, PERIOD_CURRENT, InpFastMAPeriod, 0, MODE_EMA, PRICE_CLOSE);
-   volume_handle = iVolumes(_Symbol, PERIOD_CURRENT, VOLUME_TICK);
-   
-   if(ema_handle < 0 || volume_handle < 0)
-   {
-      Print("Erreur: Impossible de crÃ©er les handles");
-      return(INIT_FAILED);
-   }
-   
-   Print("Shalom EA - SystÃ¨me intelligent 95% initialisÃ©");
-   return(INIT_SUCCEEDED);
-}
+  {
+   Print("========================================");
+   Print("  Shalom EA v4.0 - Wall Street Level");
+   Print("  Trade Sniper + Adaptive Risk + PSM");
+   Print("  95%+ Reliability Target");
+   Print("========================================");
+
+   //--- 1. Initialiser le Risk Manager
+   if(UseAdaptiveRisk)
+     {
+      if(!g_adaptive_risk.Initialize(RiskPercent, MaxDailyDD, MaxWeeklyDD, MaxMonthlyDD, MaxPositions, MaxDailyTrades, MagicNumber))
+        { Print("Shalom EA: ERREUR - Adaptive Risk Engine"); return INIT_FAILED; }
+     }
+   else
+     {
+      if(!g_risk_manager.Initialize(RiskPercent, MaxDailyDD, MaxWeeklyDD, MaxMonthlyDD, MaxPositions, MagicNumber))
+        { Print("Shalom EA: ERREUR - Risk Manager"); return INIT_FAILED; }
+     }
+
+   //--- 2. Initialiser les moteurs d'analyse
+   if(!g_market_structure.Initialize(10, 0, 100))
+     { Print("Shalom EA: ERREUR - Market Structure Engine"); return INIT_FAILED; }
+   if(!g_order_blocks.Initialize(OB_LOOKBACK, 1.5, 20))
+     { Print("Shalom EA: ERREUR - Order Block Engine"); return INIT_FAILED; }
+   if(!g_fvg_engine.Initialize(FVG_LOOKBACK, 30))
+     { Print("Shalom EA: ERREUR - FVG Engine"); return INIT_FAILED; }
+   if(!g_liquidity_engine.Initialize(LIQUIDITY_LOOKBACK, EQUAL_TOLERANCE_PIPS))
+     { Print("Shalom EA: ERREUR - Liquidity Engine"); return INIT_FAILED; }
+   if(!g_session_engine.Initialize(GMT_Offset))
+     { Print("Shalom EA: ERREUR - Session Engine"); return INIT_FAILED; }
+   if(!g_volume_engine.Initialize(20, 1.5, 2.5))
+     { Print("Shalom EA: ERREUR - Volume Engine"); return INIT_FAILED; }
+   if(!g_volatility_engine.Initialize(DEFAULT_ATR_PERIOD, 0.5, 3.0))
+     { Print("Shalom EA: ERREUR - Volatility Engine"); return INIT_FAILED; }
+
+   //--- 3. Moteurs composites
+   if(!g_sre.Initialize(&g_market_structure, &g_order_blocks, &g_fvg_engine, &g_liquidity_engine))
+     { Print("Shalom EA: ERREUR - Strategic Reversal Engine"); return INIT_FAILED; }
+   if(!g_smart_money.Initialize(&g_market_structure, &g_order_blocks, &g_fvg_engine, &g_liquidity_engine))
+     { Print("Shalom EA: ERREUR - Smart Money Engine"); return INIT_FAILED; }
+   if(!g_ict_engine.Initialize(&g_session_engine, &g_market_structure))
+     { Print("Shalom EA: ERREUR - ICT Engine"); return INIT_FAILED; }
+   if(!g_ai_scoring.Initialize(&g_sre, &g_smart_money, &g_ict_engine, &g_order_blocks,
+                                &g_fvg_engine, &g_liquidity_engine, &g_volume_engine,
+                                &g_volatility_engine, &g_session_engine, MinSignalScore))
+     { Print("Shalom EA: ERREUR - AI Scoring Engine"); return INIT_FAILED; }
+
+   //--- 4. Trade Executor
+   if(!g_trade_executor.Initialize(&g_risk_manager, MagicNumber))
+     { Print("Shalom EA: ERREUR - Trade Executor"); return INIT_FAILED; }
+
+   //--- 5. Trade Manager classique
+   if(!g_trade_manager.Initialize(&g_trade_executor, &g_volatility_engine,
+                                    EnableBreakEven, EnableTrailingStop, EnablePartialClose, TrailingMode))
+     { Print("Shalom EA: ERREUR - Trade Manager"); return INIT_FAILED; }
+
+   //--- 6. Position State Machine (Wall Street)
+   if(!g_position_sm.Initialize(&g_trade_executor, &g_volatility_engine, &g_market_structure,
+                                  EnableBreakEven, EnableTrailingStop, EnablePartialClose,
+                                  EnableStructuralSL, TrailingMode))
+     { Print("Shalom EA: ERREUR - Position State Machine"); return INIT_FAILED; }
+
+   //--- 7. Trade Sniper Engine (Wall Street)
+   if(!g_sniper_engine.Initialize(&g_market_structure, &g_order_blocks, &g_fvg_engine,
+                                    &g_liquidity_engine, &g_volatility_engine,
+                                    &g_session_engine, &g_volume_engine, MinSniperScore))
+     { Print("Shalom EA: ERREUR - Trade Sniper Engine"); return INIT_FAILED; }
+   g_sniper_engine.SetRequireKillzone(RequireKillzone);
+
+   //--- 8. Support
+   if(!g_dashboard.Initialize(10, 30, EnableDashboard))
+     { Print("Shalom EA: ERREUR - Dashboard"); return INIT_FAILED; }
+   if(!g_statistics.Initialize())
+     { Print("Shalom EA: ERREUR - Statistics Database"); return INIT_FAILED; }
+   if(!g_news_filter.Initialize(RequireNewsFilter, 30, 30))
+     { Print("Shalom EA: ERREUR - News Filter"); return INIT_FAILED; }
+   if(!g_ml_engine.Initialize(500, 30))
+     { Print("Shalom EA: ERREUR - ML Engine"); return INIT_FAILED; }
+   if(!g_bt_intelligence.Initialize(50))
+     { Print("Shalom EA: ERREUR - Backtest Intelligence"); return INIT_FAILED; }
+
+   g_statistics.LoadFromHistory();
+   g_all_initialized = true;
+
+   Print("Shalom EA: Tous les moteurs initialises avec succes");
+   Print("Shalom EA: Risk=", RiskPercent, "% | Sniper>=", MinSniperScore,
+         " | R:R>=", MinRiskReward, " | AdaptiveRisk=", UseAdaptiveRisk ? "ON" : "OFF",
+         " | StructuralSL=", EnableStructuralSL ? "ON" : "OFF");
+
+   return INIT_SUCCEEDED;
+  }
 
 //+------------------------------------------------------------------+
-//| Fonction de dÃ©sinitialisation                                   |
+//| Desinitialisation                                                |
 //+------------------------------------------------------------------+
 void OnDeinit(const int reason)
-{
-   if(pattern_detector != NULL)
-   {
-      delete pattern_detector;
-      pattern_detector = NULL;
-   }
-   
-   if(ha_calculator != NULL)
-   {
-      delete ha_calculator;
-      ha_calculator = NULL;
-   }
-   
-   if(ema_handle >= 0)
-   {
-      IndicatorRelease(ema_handle);
-   }
-   
-   if(volume_handle >= 0)
-   {
-      IndicatorRelease(volume_handle);
-   }
-   
-   Print("Shalom EA - DÃ©sinitialisation complÃ¨te");
-}
+  {
+   g_bt_intelligence.Deinitialize();
+   g_ml_engine.Deinitialize();
+   g_news_filter.Deinitialize();
+   g_statistics.Deinitialize();
+   g_dashboard.Deinitialize();
+   g_sniper_engine.Deinitialize();
+   g_position_sm.Deinitialize();
+   g_trade_manager.Deinitialize();
+   g_trade_executor.Deinitialize();
+   g_adaptive_risk.Deinitialize();
+   g_ai_scoring.Deinitialize();
+   g_ict_engine.Deinitialize();
+   g_smart_money.Deinitialize();
+   g_sre.Deinitialize();
+   g_volatility_engine.Deinitialize();
+   g_volume_engine.Deinitialize();
+   g_session_engine.Deinitialize();
+   g_liquidity_engine.Deinitialize();
+   g_fvg_engine.Deinitialize();
+   g_order_blocks.Deinitialize();
+   g_market_structure.Deinitialize();
+   g_risk_manager.Deinitialize();
+
+   g_all_initialized = false;
+   Print("Shalom EA: Expert desinitialise - Raison: ", reason);
+  }
 
 //+------------------------------------------------------------------+
 //| Fonction principale - tick                                      |
 //+------------------------------------------------------------------+
 void OnTick()
-{
-   // VÃ©rification des conditions de trading
-   if(!CheckTradeConditions())
-   {
+  {
+   if(!g_all_initialized || !EnableAutoTrading)
       return;
-   }
-   
-   // Mise Ã  jour des donnÃ©es
-   if(!UpdateMarketData())
-   {
-      return;
-   }
-   
-   // DÃ©tection des patterns
-   DetectPatterns();
-}
 
-//+------------------------------------------------------------------+
-//| VÃ©rification des conditions de trading                          |
-//+------------------------------------------------------------------+
-bool CheckTradeConditions()
-{
-   if(PositionsTotal() >= InpMaxPositions)
-   {
-      return false;
-   }
-   
-   return true;
-}
+   g_ticks_processed++;
 
-//+------------------------------------------------------------------+
-//| Mise Ã  jour des donnÃ©es de marchÃ©                              |
-//+------------------------------------------------------------------+
-bool UpdateMarketData()
-{
-   // RÃ©cupÃ©ration des donnÃ©es EMA
-   if(CopyBuffer(ema_handle, 0, 0, 100, ema_data) < 0)
-   {
-      Print("Erreur: Impossible de copier les donnÃ©es EMA");
-      return false;
-   }
-   
-   // RÃ©cupÃ©ration des donnÃ©es de volume
-   if(CopyBuffer(volume_handle, 0, 0, 100, volume_buffer) < 0)
-   {
-      Print("Erreur: Impossible de copier les donnÃ©es de volume");
-      return false;
-   }
-   
-   return true;
-}
+   //--- 1. Mise a jour temps reel (chaque tick)
+   g_session_engine.Update();
+   g_news_filter.Update();
 
-//+------------------------------------------------------------------+
-//| DÃ©tection des patterns                                          |
-//+------------------------------------------------------------------+
-void DetectPatterns()
-{
-   if(pattern_detector == NULL || ha_calculator == NULL)
-   {
-      return;
-   }
-   
-   // Mise Ã  jour du calculateur Heikin-Ashi
-   ha_calculator.Update();
-   
-   // DÃ©tection des patterns d'achat
-   if(pattern_detector.DetectBuyPattern(ha_calculator, ema_data, volume_buffer))
-   {
-      Print("Pattern d'achat dÃ©tectÃ© - exÃ©cution du trade");
-      ExecuteTrade(ORDER_TYPE_BUY);
-   }
-   
-   // DÃ©tection des patterns de vente
-   if(pattern_detector.DetectSellPattern(ha_calculator, ema_data, volume_buffer))
-   {
-      Print("Pattern de vente dÃ©tectÃ© - exÃ©cution du trade");
-      ExecuteTrade(ORDER_TYPE_SELL);
-   }
-}
-
-//+------------------------------------------------------------------+
-//| ExÃ©cution d'un trade                                            |
-//+------------------------------------------------------------------+
-void ExecuteTrade(ENUM_ORDER_TYPE order_type)
-{
-   double lot_size = CalculateLotSize();
-   double price = (order_type == ORDER_TYPE_BUY) ? SymbolInfoDouble(_Symbol, SYMBOL_ASK) : SymbolInfoDouble(_Symbol, SYMBOL_BID);
-   
-   // Calcul des SL/TP
-   double sl = (order_type == ORDER_TYPE_BUY) ? 
-      price - InpTrailingStopPips * _Point : 
-      price + InpTrailingStopPips * _Point;
-   
-   double tp = (order_type == ORDER_TYPE_BUY) ? 
-      price + InpTrailingStopPips * 2 * _Point : 
-      price - InpTrailingStopPips * 2 * _Point;
-   
-   // CrÃ©ation de l'ordre
-   CTrade trade;
-   trade.SetExpertMagicNumber(123456);
-   trade.SetDeviationInPoints(10);
-   
-   if(order_type == ORDER_TYPE_BUY)
-   {
-      trade.Buy(lot_size, _Symbol, price, sl, tp);
-   }
+   if(UseAdaptiveRisk)
+      g_adaptive_risk.Update();
    else
-   {
-      trade.Sell(lot_size, _Symbol, price, sl, tp);
-   }
-   
-   Print("Trade exÃ©cutÃ©: ", order_type == ORDER_TYPE_BUY ? "ACHAT" : "VENTE", 
-         " - Lot: ", lot_size, " - Prix: ", price);
-}
+      g_risk_manager.Update();
+
+   //--- 2. Mise a jour technique (nouvelle bougie)
+   bool new_bar = IsNewBar(LTF_Timeframe);
+
+   if(new_bar)
+     {
+      double spread = SymbolInfoInteger(_Symbol, SYMBOL_SPREAD) * _Point;
+      bool spread_ok = (spread <= MAX_SPREAD_POINTS * _Point);
+
+      g_market_structure.Update(HTF_Timeframe);
+      g_market_structure.Update(MTF_Timeframe);
+      g_market_structure.Update(LTF_Timeframe);
+      g_order_blocks.Update();
+      g_fvg_engine.Update();
+      g_liquidity_engine.Update();
+      g_volume_engine.Update();
+      g_volatility_engine.Update();
+      g_smart_money.Update();
+      g_ict_engine.Update();
+
+      //--- 3. Analyser les signaux (seulement si spread acceptable)
+      bool can_trade = UseAdaptiveRisk ? g_adaptive_risk.CanOpenTrade(SIGNAL_BUY) : g_risk_manager.CanOpenTrade(SIGNAL_BUY);
+      bool news_ok = g_news_filter.CanTrade();
+      if(spread_ok && can_trade && news_ok)
+         AnalyzeAndExecute();
+      else if(!spread_ok)
+         Print("Shalom EA: Spread trop eleve - Analyse sautee");
+
+      g_last_analysis_time = TimeCurrent();
+     }
+
+   //--- 4. Gerer les positions ouvertes (chaque tick)
+   g_position_sm.Update();
+   g_trade_manager.Update();
+
+   //--- 5. Protection news
+   if(RequireNewsFilter && g_news_filter.ShouldTightenStopLoss())
+      TightenSLForNews();
+
+   //--- 6. Dashboard
+   if(EnableDashboard && g_ticks_processed % 10 == 0)
+      UpdateDashboard();
+  }
 
 //+------------------------------------------------------------------+
-//| Calcul de la taille de lot                                      |
+//| Analyser et Executer - PIPELINE WALL STREET                      |
 //+------------------------------------------------------------------+
-double CalculateLotSize()
-{
-   double account_balance = AccountInfoDouble(ACCOUNT_BALANCE);
-   double risk_amount = account_balance * InpRiskPercent / 100.0;
-   double tick_value = SymbolInfoDouble(_Symbol, SYMBOL_TRADE_TICK_VALUE);
-   double tick_size = SymbolInfoDouble(_Symbol, SYMBOL_TRADE_TICK_SIZE);
-   
-   double lot_size = risk_amount / (InpTrailingStopPips * tick_value);
-   lot_size = MathMax(lot_size, InpLotSize);
-   lot_size = MathMin(lot_size, SymbolInfoDouble(_Symbol, SYMBOL_VOLUME_MAX));
-   
-   return NormalizeDouble(lot_size, 2);
-}
+void AnalyzeAndExecute()
+  {
+   SMarketStructure m15_struct = g_market_structure.GetStructure(LTF_Timeframe);
 
+   //--- Analyser les deux directions
+   if(m15_struct.direction == MARKET_DIRECTION_BULLISH ||
+      m15_struct.last_event == STRUCTURE_CHOCH_BULLISH ||
+      m15_struct.last_event == STRUCTURE_MSS_BULLISH)
+     {
+      if(CheckMultiTimeframeAlignment(SIGNAL_BUY))
+         TryExecuteSniperSignal(SIGNAL_BUY);
+     }
+
+   if(m15_struct.direction == MARKET_DIRECTION_BEARISH ||
+      m15_struct.last_event == STRUCTURE_CHOCH_BEARISH ||
+      m15_struct.last_event == STRUCTURE_MSS_BEARISH)
+     {
+      if(CheckMultiTimeframeAlignment(SIGNAL_SELL))
+         TryExecuteSniperSignal(SIGNAL_SELL);
+     }
+  }
+
+//+------------------------------------------------------------------+
+//| Verifier l'alignement multi-timeframe                            |
+//+------------------------------------------------------------------+
+bool CheckMultiTimeframeAlignment(ENUM_SIGNAL_TYPE direction)
+  {
+   ENUM_MARKET_DIRECTION h4_dir = g_market_structure.GetDirection(HTF_Timeframe);
+   ENUM_MARKET_DIRECTION h1_dir = g_market_structure.GetDirection(MTF_Timeframe);
+
+   if(direction == SIGNAL_BUY)
+      return (h4_dir != MARKET_DIRECTION_BEARISH) && (h1_dir != MARKET_DIRECTION_BEARISH);
+
+   if(direction == SIGNAL_SELL)
+      return (h4_dir != MARKET_DIRECTION_BULLISH) && (h1_dir != MARKET_DIRECTION_BULLISH);
+
+   return false;
+  }
+
+//+------------------------------------------------------------------+
+//| Tenter d'executer un signal sniper                               |
+//| Pipeline complet: Sniper -> AI Score -> SRE -> SME -> Execution |
+//+------------------------------------------------------------------+
+void TryExecuteSniperSignal(ENUM_SIGNAL_TYPE direction)
+  {
+   //--- 1. Verifier le spread
+   double spread = SymbolInfoInteger(_Symbol, SYMBOL_SPREAD) * _Point;
+   if(spread > MAX_SPREAD_POINTS * _Point) return;
+
+   //--- 2. PHASE SNIPER: Chasser le signal de precision
+   SSniperSignal sniper = g_sniper_engine.HuntSniperSignal(direction);
+   g_last_sniper_score = sniper.sniper_score;
+
+   if(!sniper.is_valid)
+      return;
+
+   //--- 3. PHASE AI SCORING: Confirmation du score global
+   SAIScore ai_score = g_ai_scoring.CalculateScore(direction);
+   g_last_score = ai_score.total_score;
+   g_last_signal_direction = (int)direction;
+
+   if(!ai_score.meets_threshold) return;
+   if(!g_ai_scoring.MeetsAllCriteria(direction)) return;
+
+   //--- 4. PHASE SRE: Verification du Strategic Reversal
+   SStrategicReversalSignal sre_signal = g_ai_scoring.GetLastSRESignal();
+   if(sre_signal.total_score < MinSREScore) return;
+
+   //--- 5. PHASE SME: Confirmation Smart Money
+   if(RequireSMEConfirmation && !g_smart_money.HasSmartMoneyConfirmation(direction))
+      return;
+
+   //--- 6. PHASE SESSION: Filtre de session
+   if(RequireSessionFilter && !g_session_engine.IsOptimalTradingTime())
+      if(ai_score.total_score < 90.0) return;  // Seuil plus eleve hors session
+
+   //--- 7. PHASE RISK: Verification du risque adaptatif
+   bool can_trade;
+   if(UseAdaptiveRisk)
+      can_trade = g_adaptive_risk.CanOpenTrade(direction);
+   else
+      can_trade = g_risk_manager.CanOpenTrade(direction);
+
+   if(!can_trade) return;
+
+   //--- 8. Verifier qu'on n'a pas deja une position dans cette direction
+   if(HasOpenPositionInDirection(direction)) return;
+
+   //--- 9. Calculer le lot adaptatif
+   double sl_distance_pips = MathAbs(sniper.entry_price - sniper.stop_loss) / _Point;
+   double lot;
+   if(UseAdaptiveRisk)
+      lot = g_adaptive_risk.CalculateAdaptiveLotSize(sl_distance_pips);
+   else
+      lot = g_risk_manager.CalculateLotSize(sl_distance_pips);
+
+   //--- 10. Verifier la marge
+   bool has_margin;
+   if(UseAdaptiveRisk)
+      has_margin = g_adaptive_risk.HasEnoughMargin(lot);
+   else
+      has_margin = g_risk_manager.HasEnoughMargin(lot);
+
+   if(!has_margin) return;
+
+   //--- 11. EXECUTION
+   Print("========================================");
+   Print("Shalom EA: SIGNAL SNIPER ", (direction == SIGNAL_BUY) ? "ACHAT" : "VENTE");
+   Print("  Sniper Score: ", sniper.sniper_score, "/100 (", GetSniperQualityName(sniper.quality), ")");
+   Print("  AI Score: ", ai_score.total_score, "/100");
+   Print("  SRE Score: ", sre_signal.total_score, "/100");
+   Print("  R:R: ", sniper.risk_reward);
+   Print("  Zone: ", GetSniperZoneName(sniper.zone_type));
+   Print("  Timing: ", GetSniperTimingName(sniper.timing));
+   Print("  Entry Tech: ", GetEntryTechName(sniper.entry_technique));
+   Print("  Risk Eff: ", UseAdaptiveRisk ? g_adaptive_risk.GetEffectiveRiskPercent() : g_risk_manager.GetEffectiveRiskPercent(), "%");
+   Print("========================================");
+
+   //--- Utiliser les niveaux du sniper (plus precis que SRE)
+   int ticket = -1;
+   if(direction == SIGNAL_BUY)
+      ticket = g_trade_executor.ExecuteBuy(sniper.entry_price, sniper.stop_loss,
+                                            sniper.tp1, sniper.tp2, sniper.tp3, lot);
+   else
+      ticket = g_trade_executor.ExecuteSell(sniper.entry_price, sniper.stop_loss,
+                                             sniper.tp1, sniper.tp2, sniper.tp3, lot);
+
+   //--- Enregistrer dans les gestionnaires
+   if(ticket > 0)
+     {
+      //--- Trade Manager classique
+      g_trade_manager.RegisterPosition(ticket, direction, sniper.entry_price,
+                                        sniper.stop_loss, sniper.tp1, sniper.tp2, sniper.tp3,
+                                        lot, ai_score.total_score);
+
+      //--- Position State Machine (Wall Street)
+      g_position_sm.RegisterPosition(ticket, direction, sniper.entry_price,
+                                      sniper.stop_loss, sniper.tp1, sniper.tp2, sniper.tp3,
+                                      lot, ai_score.total_score, sniper.sniper_score);
+
+      //--- Enregistrer dans le Risk Manager
+      if(UseAdaptiveRisk)
+         g_adaptive_risk.RecordTradeOpened();
+      else
+         g_risk_manager.RecordTradeOpened();
+
+      //--- Dashboard
+      if(EnableDashboard)
+         g_dashboard.DrawTradeLevels(sniper.entry_price, sniper.stop_loss,
+                                      sniper.tp1, sniper.tp2, sniper.tp3, direction);
+
+      Print("Shalom EA: Trade sniper execute - Ticket=", ticket, " Lot=", lot,
+            " SniperScore=", sniper.sniper_score);
+
+      //--- Notifications
+      string notif = StringFormat("Shalom EA %s | Sniper=%d(%s) AI=%.0f SRE=%d R:R=%.1f",
+                                   (direction == SIGNAL_BUY) ? "BUY" : "SELL",
+                                   sniper.sniper_score, GetSniperQualityName(sniper.quality),
+                                   ai_score.total_score, sre_signal.total_score, sniper.risk_reward);
+      SendNotification(notif);
+      Alert("Shalom EA: ", (direction == SIGNAL_BUY) ? "ACHAT" : "VENTE",
+            " Sniper=", sniper.sniper_score);
+     }
+  }
+
+//+------------------------------------------------------------------+
+//| Resserrer le SL avant les news                                   |
+//+------------------------------------------------------------------+
+void TightenSLForNews()
+  {
+   for(int i = PositionsTotal() - 1; i >= 0; i--)
+     {
+      ulong ticket = PositionGetTicket(i);
+      if(ticket <= 0) continue;
+      if(PositionGetInteger(POSITION_MAGIC) != (long)MagicNumber) continue;
+      if(PositionGetString(POSITION_SYMBOL) != _Symbol) continue;
+
+      double current_sl = PositionGetDouble(POSITION_SL);
+      double current_tp = PositionGetDouble(POSITION_TP);
+      double entry_price = PositionGetDouble(POSITION_PRICE_OPEN);
+      long pos_type = PositionGetInteger(POSITION_TYPE);
+
+      double atr = g_volatility_engine.GetCurrentATR();
+      if(atr <= 0) continue;
+      double tighter_sl_distance = atr * 1.0;
+      double tighter_sl = 0;
+      int digits = (int)SymbolInfoInteger(_Symbol, SYMBOL_DIGITS);
+
+      if(pos_type == POSITION_TYPE_BUY)
+        {
+         tighter_sl = NormalizeDouble(entry_price - tighter_sl_distance, digits);
+         if(tighter_sl > current_sl && tighter_sl > 0)
+            g_trade_executor.ModifyPosition(ticket, tighter_sl, current_tp);
+        }
+      else if(pos_type == POSITION_TYPE_SELL)
+        {
+         tighter_sl = NormalizeDouble(entry_price + tighter_sl_distance, digits);
+         if((tighter_sl < current_sl || current_sl == 0) && tighter_sl > 0)
+            g_trade_executor.ModifyPosition(ticket, tighter_sl, current_tp);
+        }
+     }
+  }
+
+//+------------------------------------------------------------------+
+//| Mettre a jour le dashboard                                       |
+//+------------------------------------------------------------------+
+void UpdateDashboard()
+  {
+   SStatistics stats = g_statistics.GetStatistics();
+   string session = g_session_engine.GetSessionName();
+   string signal = (g_last_signal_direction == 1) ? "BUY" :
+                    (g_last_signal_direction == -1) ? "SELL" : "NONE";
+   SStrategicReversalSignal sre_sig = g_sre.GetLastSignal();
+   string sre_class = GetSignalClassName(sre_sig.classification);
+
+   int open_positions = 0;
+   for(int i = PositionsTotal() - 1; i >= 0; i--)
+     {
+      ulong ticket = PositionGetTicket(i);
+      if(ticket > 0 && PositionGetInteger(POSITION_MAGIC) == (long)MagicNumber)
+         open_positions++;
+     }
+
+   double daily_dd = UseAdaptiveRisk ? g_adaptive_risk.GetDailyDrawdownPct() : g_risk_manager.GetDailyDrawdownPct();
+   double weekly_dd = UseAdaptiveRisk ? g_adaptive_risk.GetWeeklyDrawdownPct() : g_risk_manager.GetWeeklyDrawdownPct();
+   double eff_risk = UseAdaptiveRisk ? g_adaptive_risk.GetEffectiveRiskPercent() : g_risk_manager.GetEffectiveRiskPercent();
+   bool suspended = UseAdaptiveRisk ? g_adaptive_risk.IsTradingSuspended() : g_risk_manager.IsTradingSuspended();
+
+   g_dashboard.Update(stats, g_last_score, session, signal, sre_class,
+                       daily_dd, weekly_dd, eff_risk, open_positions, suspended);
+  }
+
+//+------------------------------------------------------------------+
+//| Verifier s'il y a deja une position dans la direction            |
+//+------------------------------------------------------------------+
+bool HasOpenPositionInDirection(ENUM_SIGNAL_TYPE direction)
+  {
+   for(int i = PositionsTotal() - 1; i >= 0; i--)
+     {
+      ulong ticket = PositionGetTicket(i);
+      if(ticket <= 0) continue;
+      if(PositionGetInteger(POSITION_MAGIC) != (long)MagicNumber) continue;
+      if(PositionGetString(POSITION_SYMBOL) != _Symbol) continue;
+
+      long pos_type = PositionGetInteger(POSITION_TYPE);
+      if(direction == SIGNAL_BUY && pos_type == POSITION_TYPE_BUY) return true;
+      if(direction == SIGNAL_SELL && pos_type == POSITION_TYPE_SELL) return true;
+     }
+   return false;
+  }
+
+//+------------------------------------------------------------------+
+//| Nouvelle bougie                                                  |
+//+------------------------------------------------------------------+
+bool IsNewBar(ENUM_TIMEFRAMES tf)
+  {
+   static datetime last_bar_time = 0;
+   datetime current_bar_time = iTime(_Symbol, tf, 0);
+   if(current_bar_time != last_bar_time)
+     {
+      last_bar_time = current_bar_time;
+      return true;
+     }
+   return false;
+  }
+
+//+------------------------------------------------------------------+
+//| Noms d'enum pour les logs                                        |
+//+------------------------------------------------------------------+
+string GetSignalClassName(ENUM_SIGNAL_CLASS classification)
+  {
+   switch(classification)
+     {
+      case SIGNAL_CLASS_ELITE:    return "ELITE";
+      case SIGNAL_CLASS_SNIPER:   return "SNIPER";
+      case SIGNAL_CLASS_STANDARD: return "STANDARD";
+      case SIGNAL_CLASS_WEAK:     return "WEAK";
+      default:                    return "NONE";
+     }
+  }
+
+string GetSniperQualityName(int quality)
+  {
+   switch(quality)
+     {
+      case 4: return "DIAMOND";
+      case 3: return "GOLD";
+      case 2: return "SILVER";
+      case 1: return "BRONZE";
+      default: return "REJECT";
+     }
+  }
+
+string GetSniperZoneName(int zone)
+  {
+   switch(zone)
+     {
+      case 4: return "CONFLUENCE";
+      case 3: return "LIQUIDITY";
+      case 2: return "FVG";
+      case 1: return "OB";
+      default: return "NONE";
+     }
+  }
+
+string GetSniperTimingName(int timing)
+  {
+   switch(timing)
+     {
+      case 4: return "OVERLAP";
+      case 3: return "CLOSE";
+      case 2: return "OPEN";
+      case 1: return "KILLZONE";
+      default: return "NONE";
+     }
+  }
+
+string GetEntryTechName(int tech)
+  {
+   switch(tech)
+     {
+      case 4: return "PULLBACK";
+      case 3: return "BREAKOUT";
+      case 2: return "LIMIT_FVG";
+      case 1: return "LIMIT_OB";
+      default: return "MARKET";
+     }
+  }
+
+//+------------------------------------------------------------------+
+//| Gestion des evenements de trade                                  |
+//+------------------------------------------------------------------+
+void OnTrade()
+  {
+   static int last_deals_total = 0;
+
+   HistorySelect(0, TimeCurrent());
+   int current_deals = HistoryDealsTotal();
+
+   if(current_deals > last_deals_total)
+     {
+      for(int i = last_deals_total; i < current_deals; i++)
+        {
+         ulong deal_ticket = HistoryDealGetTicket(i);
+         if(deal_ticket <= 0) continue;
+
+         long magic = HistoryDealGetInteger(deal_ticket, DEAL_MAGIC);
+         if(magic != (long)MagicNumber) continue;
+
+         long entry = HistoryDealGetInteger(deal_ticket, DEAL_ENTRY);
+         if(entry != DEAL_ENTRY_OUT) continue;
+
+         double profit = HistoryDealGetDouble(deal_ticket, DEAL_PROFIT);
+
+         //--- Enregistrer dans les stats
+         STradeResult result;
+         result.ticket = (int)deal_ticket;
+         result.profit = profit;
+         result.close_time = (datetime)HistoryDealGetInteger(deal_ticket, DEAL_TIME);
+         long deal_type = HistoryDealGetInteger(deal_ticket, DEAL_TYPE);
+         result.direction = (deal_type == DEAL_TYPE_BUY) ? SIGNAL_BUY : SIGNAL_SELL;
+
+         g_statistics.RecordTrade(result);
+
+         //--- Mettre a jour le Risk Manager
+         bool is_win = (profit >= 0);
+         if(UseAdaptiveRisk)
+            g_adaptive_risk.RecordTradeResult(is_win, profit);
+         else
+            g_risk_manager.RecordTradeResult(is_win);
+
+         //--- ML Engine
+         SSignalPattern ml_pattern;
+         ZeroMemory(ml_pattern);
+         ml_pattern.session = g_session_engine.GetActiveSession();
+         ml_pattern.symbol = _Symbol;
+         ml_pattern.was_win = is_win;
+         ml_pattern.profit = profit;
+         ml_pattern.ai_score = g_last_score;
+         ml_pattern.time = result.close_time;
+         g_ml_engine.RecordTrade(ml_pattern);
+
+         //--- Backtest Intelligence
+         string setup_type = (result.direction == SIGNAL_BUY) ? "Sniper_Bullish" : "Sniper_Bearish";
+         g_bt_intelligence.UpdateSetupFromTrade(setup_type, is_win, profit, 0, 0);
+
+         Print("Shalom EA: Trade ferme - Ticket=", deal_ticket, " Profit=", profit,
+               " (", is_win ? "WIN" : "LOSS", ")");
+
+         //--- Notification
+         string close_notif = StringFormat("Shalom EA Close | %s | P&L=%.2f", is_win ? "WIN" : "LOSS", profit);
+         SendNotification(close_notif);
+
+         //--- Retirer des gestionnaires
+         g_trade_manager.RemovePosition((ulong)HistoryDealGetInteger(deal_ticket, DEAL_POSITION_ID));
+         g_position_sm.RemovePosition((ulong)HistoryDealGetInteger(deal_ticket, DEAL_POSITION_ID));
+         if(EnableDashboard)
+            g_dashboard.ClearTradeLevels();
+        }
+
+      last_deals_total = current_deals;
+     }
+  }
+
+//+------------------------------------------------------------------+
+//| Tester les fonctions                                             |
+//+------------------------------------------------------------------+
+void OnTester()
+  {
+   double net_profit = g_statistics.GetStatistics().total_profit - g_statistics.GetStatistics().total_loss;
+   TesterStatistics(STAT_PROFIT, net_profit);
+  }
+//+------------------------------------------------------------------+

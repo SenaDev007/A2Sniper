@@ -285,8 +285,19 @@ bool CHeikinAshiCalculator::Calculate(int start_pos = 0, int count = -1)
       m_ha_data[i].volume = m_volume[i];
       m_ha_data[i].time = m_time[i];
       
+      // FIX: Calculer le body_size, is_bullish, upper_wick, lower_wick
+      double ha_open = m_ha_data[i].ha_open;
+      double ha_close = m_ha_data[i].ha_close;
+      double ha_high = m_ha_data[i].ha_high;
+      double ha_low = m_ha_data[i].ha_low;
+      
+      m_ha_data[i].body_size = MathAbs(ha_close - ha_open);
+      m_ha_data[i].is_bullish = (ha_close >= ha_open);
+      m_ha_data[i].upper_wick = ha_high - MathMax(ha_open, ha_close);
+      m_ha_data[i].lower_wick = MathMin(ha_open, ha_close) - ha_low;
+      
       // Détection Doji
-      double total_range = m_ha_data[i].ha_high - m_ha_data[i].ha_low;
+      double total_range = ha_high - ha_low;
       if(total_range > 0)
       {
          double body_ratio = m_ha_data[i].body_size / total_range;
