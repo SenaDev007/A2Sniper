@@ -5,10 +5,10 @@
 //| Full integration: Sniper + State Machine + Adaptive Risk         |
 //+------------------------------------------------------------------+
 #property copyright "Copyright 2024, YEHI OR Tech Solutions"
-#property version   "5.00"
-#property description "A2Sniper Trading v5.0 - Pipeline Score-Based System"
-#property description "v5: Scoring approach instead of sequential gates"
-#property description "No more 0-trade backtest - score drives decisions"
+#property version   "5.20"
+#property description "A2Sniper Trading v5.2 - Pipeline Score-Based System"
+#property description "v5.2: AI negative no longer blocks - composite decides"
+#property description "Penalties reduced, threshold lowered 60->45"
 #property description "SMC/ICT + Strategic Reversal + Smart Money"
 #property description "80%+ Win Rate Target"
 
@@ -444,7 +444,7 @@ bool CheckMultiTimeframeAlignment(ENUM_SIGNAL_TYPE direction)
 //|   - penalty_range - penalty_no_zone                               |
 //| Si score_composite >= MIN_COMPOSITE_SCORE (60) => trade           |
 //+------------------------------------------------------------------+
-#define MIN_COMPOSITE_SCORE  60.0   // Score composite minimum pour trader
+#define MIN_COMPOSITE_SCORE  45.0   // Score composite minimum (abaissé de 60 -> 45 pour plus de trades)
 
 void TryExecuteSniperSignal(ENUM_SIGNAL_TYPE direction)
   {
@@ -506,27 +506,28 @@ void TryExecuteSniperSignal(ENUM_SIGNAL_TYPE direction)
    if(has_good_timing)      composite += 3.0;    // Bon timing (KillZone/Overlap)
    if(is_killzone)          composite += 2.0;    // Kill Zone active
 
-   //--- Penalites (au lieu de portes bloquantes)
-   if(!has_institutional)   composite -= 10.0;   // Pas de zone institutionnelle
-   if(!has_good_timing)     composite -= 3.0;    // Pas de bon timing
-   if(!has_sme)             composite -= 5.0;    // Pas de confirmation Smart Money
+   //--- Penalites v5.2 (reduites - trop de rejets sinon)
+   if(!has_institutional)   composite -= 5.0;    // Pas de zone institutionnelle (etait -10)
+   if(!has_good_timing)     composite -= 2.0;    // Pas de bon timing (etait -3)
+   if(!has_sme)             composite -= 3.0;    // Pas de confirmation Smart Money (etait -5)
 
-   //--- Range penalty (deja dans le score AI, mais on le renforce)
-   if(ai_score.range_penalty < -15.0)  composite -= 5.0;
+   //--- Range penalty: deja dans le score AI, pas besoin de double penalite
+   //--- (supprime - etait -5 quand range_penalty < -15)
 
-   //--- Session asiatique sans paire asiatique = penalite forte
+   //--- Session asiatique sans paire asiatique = penalite moderee
    if(g_session_engine.IsAsianSession())
      {
       string sym = _Symbol;
       if(StringFind(sym, "JPY") < 0 && StringFind(sym, "AUD") < 0 && StringFind(sym, "NZD") < 0)
-         composite -= 10.0;   // Asie hors paires asiatiques
+         composite -= 5.0;   // Asie hors paires asiatiques (etait -10)
      }
 
-   //--- Score total positif obligatoire
+   //--- v5.2: AI negatif n'est plus une porte bloquante - le composite decide
+   //--- Si AI negatif, ai_normalized=0 (pas de contribution), + penalite -3
    if(ai_score.total_score <= 0)
      {
-      Print("A2Sniper v5: Score AI negatif (", DoubleToString(ai_score.total_score, 1), ") - signal rejete");
-      return;
+      composite -= 3.0;   // Penalite legere pour AI negatif (au lieu de bloquer)
+      Print("A2Sniper v5: Score AI negatif (", DoubleToString(ai_score.total_score, 1), ") - penalite composite -3");
      }
 
    //--- 7. DECISION: Le score composite decide
@@ -542,8 +543,8 @@ void TryExecuteSniperSignal(ENUM_SIGNAL_TYPE direction)
       return;
      }
 
-   //--- 8. Verifier R:R minimum (seuil bas = 1.5)
-   if(sniper.risk_reward < MinRiskReward)
+   //--- 8. Verifier R:R minimum (avec tolerance flottante)
+   if(sniper.risk_reward < MinRiskReward - 0.01)
      {
       Print("A2Sniper v5: R:R insuffisant (", DoubleToString(sniper.risk_reward, 1), " < ", MinRiskReward, ")");
       return;
