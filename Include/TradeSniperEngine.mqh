@@ -753,9 +753,33 @@ bool CTradeSniperEngine::ValidateMicroTiming(ENUM_SIGNAL_TYPE direction)
    if(!m_require_killzone) return true;
    if(m_session_engine == NULL) return true;
 
-   //--- Accepter UNIQUEMENT pendant les Kill Zones
-   //--- Sauf si le score est exceptionnel
-   return m_session_engine.IsKillZone() || m_session_engine.IsOptimalTradingTime();
+   //--- FIX v4.3: Assouplir le filtre Kill Zone
+   //--- L'ancienne version bloquait TOUT en dehors des Kill Zones
+   //--- Maintenant: accepter pendant Kill Zone OU session de trading active
+   //--- Les sessions London + NY sont aussi valides (pas seulement Kill Zones)
+   bool is_killzone = m_session_engine.IsKillZone();
+   bool is_optimal = m_session_engine.IsOptimalTradingTime();
+   bool is_london = m_session_engine.IsLondonSession();
+   bool is_newyork = m_session_engine.IsNewYorkSession();
+   bool is_asian = m_session_engine.IsAsianSession();
+
+   //--- Kill Zone = toujours OK
+   if(is_killzone || is_optimal) return true;
+
+   //--- FIX v4.3: Sessions London/NY aussi acceptees (meme hors Kill Zone)
+   if(is_london || is_newyork) return true;
+
+   //--- Session asiatique: seulement pour paires JPY/AUD/NZD
+   if(is_asian)
+     {
+      string sym = _Symbol;
+      if(StringFind(sym, "JPY") >= 0 || StringFind(sym, "AUD") >= 0 || StringFind(sym, "NZD") >= 0)
+         return true;
+      return false;  // Asie sans paire asiatique = bloquer
+     }
+
+   //--- Hors session: bloquer
+   return false;
   }
 
 //+------------------------------------------------------------------+
@@ -912,14 +936,25 @@ SSniperSignal CTradeSniperEngine::HuntSniperSignal(ENUM_SIGNAL_TYPE direction)
    else
       signal.quality = SNIPER_QUALITY_REJECT;
 
-   //--- 14. Validation finale - CRITERES ULTRA-STRICTS
+   //--- 14. Validation finale - CRITERES ASSOPLIS v4.3
+   //--- FIX v4.3: Structure 10/25 au lieu de 15/25 (trop strict pour backtest)
+   //--- FIX v4.3: Zone et timing ne bloquent plus completement
    bool score_ok = (signal.sniper_score >= m_min_sniper_score);
    bool rr_ok = (signal.risk_reward >= m_min_rr_ratio);
-   bool structure_ok = (signal.score_structure >= 15);  // Minimum 15/25 pour la structure
+   bool structure_ok = (signal.score_structure >= 10);  // FIX v4.3: 10 au lieu de 15
    bool zone_ok = (signal.zone_type != SNIPER_ZONE_NONE);
    bool timing_ok = (signal.timing != SNIPER_TIMING_NONE);
 
-   signal.is_valid = score_ok && rr_ok && structure_ok && zone_ok && timing_ok;
+   //--- FIX v4.3: Score + R:R obligatoires, structure obligatoire
+   //--- Zone/timing: bonus mais pas bloquants (le score reflete deja la qualite)
+   signal.is_valid = score_ok && rr_ok && structure_ok;
+
+   //--- Si zone ou timing manquant, penaliser le score au lieu de bloquer
+   if(!zone_ok) signal.sniper_score -= 10;  // Pas de zone = -10 pts
+   if(!timing_ok) signal.sniper_score -= 5;   // Pas de timing = -5 pts
+
+   //--- Re-verifier le score apres penalite
+   if(signal.sniper_score < m_min_sniper_score) signal.is_valid = false;
    signal.confidence = (signal.sniper_score >= 90) ? 95.0 : (signal.sniper_score >= 80) ? 85.0 : 75.0;
 
    //--- 15. Description

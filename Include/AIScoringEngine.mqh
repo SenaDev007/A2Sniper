@@ -653,27 +653,30 @@ SAIScoreV4 CAIScoringEngine::CalculateScore(const ENUM_SIGNAL_TYPE direction)
    //--- FIX v4.2: ADX bonus already handled in CalculateRegimeScore() - removed duplicate
 
    //--- Confiance (basee sur le nombre de moteurs qui confirment)
-   //--- FIX: Seuils de confirmation augmentes (60 au lieu de 50)
+   //--- FIX v4.3: Seuils de confirmation baisses (50 au lieu de 55/60)
+   //--- Trop de moteurs ne confirmaient jamais a cause de seuils trop hauts
    score.confirming_engines = 0;
-   if(sre_score >= MIN_SIGNAL_SCORE_SNIPER) score.confirming_engines++;
-   if(m_last_smc_score >= 55) score.confirming_engines++;
-   if(m_last_ict_score >= 55) score.confirming_engines++;
-   if(m_last_liq_score >= 55) score.confirming_engines++;
-   if(m_last_ob_score >= 50) score.confirming_engines++;
-   if(m_last_fvg_score >= 50) score.confirming_engines++;
-   if(m_last_vol_score >= 50) score.confirming_engines++; // Volume doit etre positif
-   if(m_last_vole_score >= 50) score.confirming_engines++;
-   if(regime_score >= 50) score.confirming_engines++; // 9 moteurs maintenant
+   if(sre_score >= 80) score.confirming_engines++;         // FIX v4.3: 80 au lieu de 90
+   if(m_last_smc_score >= 50) score.confirming_engines++;   // FIX v4.3: 50 au lieu de 55
+   if(m_last_ict_score >= 50) score.confirming_engines++;   // FIX v4.3: 50 au lieu de 55
+   if(m_last_liq_score >= 40) score.confirming_engines++;   // FIX v4.3: 40 au lieu de 55
+   if(m_last_ob_score >= 30) score.confirming_engines++;    // FIX v4.3: 30 au lieu de 50
+   if(m_last_fvg_score >= 30) score.confirming_engines++;   // FIX v4.3: 30 au lieu de 50
+   if(m_last_vol_score >= 30) score.confirming_engines++;   // FIX v4.3: 30 au lieu de 50
+   if(m_last_vole_score >= 30) score.confirming_engines++;  // FIX v4.3: 30 au lieu de 50
+   if(regime_score >= 40) score.confirming_engines++;       // FIX v4.3: 40 au lieu de 50
 
    score.confidence = ((double)score.confirming_engines / 9.0) * 100.0;
 
-   //--- Seuil: conditions plus strictes pour 80%+ win rate
+   //--- FIX v4.3: Seuil assoupli - 5/9 moteurs suffisent (au lieu de 6/9)
+   //--- SRE >= 80 au lieu de >= 90 (MIN_SIGNAL_SCORE_SNIPER)
+   //--- range_penalty > -20 au lieu de > -15
    score.meets_threshold = (score.total_score >= m_min_score_threshold &&
-                            m_last_sre_signal.total_score >= MIN_SIGNAL_SCORE_SNIPER &&
-                            score.confirming_engines >= 6 && // Au moins 6/9 moteurs
-                            m_last_vol_score >= 0 &&         // Volume ne doit pas etre negatif
-                            score.range_penalty > -15.0 &&   // Pas en range profond
-                            score.total_score > 0);          // Score total positif
+                            m_last_sre_signal.total_score >= 80 &&  // FIX v4.3: 80 au lieu de 90
+                            score.confirming_engines >= 5 && // FIX v4.3: 5/9 au lieu de 6/9
+                            m_last_vol_score >= -10.0 &&    // FIX v4.3: permettre volume legerement negatif
+                            score.range_penalty > -20.0 &&  // FIX v4.3: -20 au lieu de -15
+                            score.total_score > 0);         // Score total positif
 
    m_last_score = score;
    return score;
@@ -697,36 +700,42 @@ bool CAIScoringEngine::MeetsAllCriteria(const ENUM_SIGNAL_TYPE direction) const
    if(m_sre == NULL || m_smc == NULL || m_ve == NULL || m_vole == NULL)
       return false;
 
-   //--- 1. SRE doit etre Sniper (>= 90)
-   if(m_last_sre_signal.total_score < MIN_SIGNAL_SCORE_SNIPER)
+   //--- 1. SRE doit etre bon (>= 75 au lieu de >= 90)
+   //--- FIX v4.3: 75 au lieu de 90 - trop de signaux valides rejetes
+   if(m_last_sre_signal.total_score < 75)
       return false;
 
    //--- 2. SMC doit avoir un score minimum (sans double comptage)
-   if(m_last_smc_score < 35)
+   //--- FIX v4.3: 25 au lieu de 35
+   if(m_last_smc_score < 25)
       return false;
 
    //--- 3. Liquidite doit etre presente
-   if(m_last_liq_score < MIN_MODULE_SCORE_LIQ)
+   //--- FIX v4.3: 15 au lieu de 25
+   if(m_last_liq_score < 15)
       return false;
 
-   //--- 4. Volume doit etre POSITIF (pas negatif)
-   if(m_last_vol_score < 0)
+   //--- 4. Volume ne doit pas etre trop negatif
+   //--- FIX v4.3: -10 au lieu de 0
+   if(m_last_vol_score < -10.0)
       return false;
 
    //--- 5. Volatilite acceptable
-   if(m_last_vole_score < 20)
+   //--- FIX v4.3: 10 au lieu de 20
+   if(m_last_vole_score < 10)
       return false;
 
    //--- 6. Pas en range profond
-   if(m_last_score.range_penalty <= -15.0)
+   if(m_last_score.range_penalty <= -20.0)
       return false;
 
    //--- 7. Session acceptable (pas en Asie sauf score tres eleve)
-   if(m_last_score.session_bonus < -10.0 && m_last_score.total_score < 90.0)
+   if(m_last_score.session_bonus < -10.0 && m_last_score.total_score < 85.0)
       return false;
 
-   //--- 8. Au moins 6 moteurs confirmants sur 9
-   if(m_last_score.confirming_engines < 6)
+   //--- 8. Au moins 5 moteurs confirmants sur 9
+   //--- FIX v4.3: 5 au lieu de 6
+   if(m_last_score.confirming_engines < 5)
       return false;
 
    return true;

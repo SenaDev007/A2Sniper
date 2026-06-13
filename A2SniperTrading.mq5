@@ -5,8 +5,8 @@
 //| Full integration: Sniper + State Machine + Adaptive Risk         |
 //+------------------------------------------------------------------+
 #property copyright "Copyright 2024, YEHI OR Tech Solutions"
-#property version   "4.10"
-#property description "A2Sniper Trading v4.1 - Wall Street Level Trading System"
+#property version   "4.30"
+#property description "A2Sniper Trading v4.3 - Wall Street Level Trading System"
 #property description "Trade Sniper + Adaptive Risk + Position State Machine"
 #property description "SMC/ICT + Strategic Reversal + Smart Money"
 #property description "VSA Volume + Graduated Volatility + Liquidity Voids"
@@ -150,10 +150,11 @@ int               g_last_sniper_score = 0;
 int OnInit()
   {
    Print("========================================");
-   Print("  A2Sniper Trading v4.1 - Wall Street Level");
-   Print("  Trade Sniper + Adaptive Risk + PSM");
-   Print("  VSA Volume + Graduated Vol + Liq Voids");
-   Print("  80%+ Win Rate Target");
+   Print("  A2Sniper Trading v4.3 - Wall Street Level");
+   Print("  v4.3: Pipeline assoupli pour backtest");
+   Print("  Range filter: penalite au lieu de blocage");
+   Print("  Kill Zone: London/NY sessions acceptees");
+   Print("  Moteurs: 5/9 confirmation, seuils baisses");
    Print("========================================");
 
    //--- 1. Initialiser le Risk Manager
@@ -399,12 +400,15 @@ void TryExecuteSniperSignal(ENUM_SIGNAL_TYPE direction)
    double spread = SymbolInfoInteger(_Symbol, SYMBOL_SPREAD) * _Point;
    if(spread > MAX_SPREAD_POINTS * _Point) return;
 
-   //--- 2. PHASE RANGE FILTER: Rejeter si marche en range profond
-   if(g_ai_scoring.IsMarketRanging())
+   //--- 2. PHASE RANGE FILTER: Penaliser si marche en range (pas bloquer)
+   //--- FIX v4.3: Ne plus bloquer completement - le range penalty est deja dans le score AI
+   //--- L'ancien blocage total empechait TOUT trade car ADX<20 est frequent sur EURUSD M15
+   bool is_ranging = g_ai_scoring.IsMarketRanging();
+   if(is_ranging)
      {
-      //--- En range, seul un score tres eleve peut passer
-      Print("A2Sniper Trading: Marche en range - signal rejete (ADX<20)");
-      return;
+      Print("A2Sniper Trading: Marche en range detecte - score AI sera penalise (range_penalty)");
+      //--- Ne pas retourner: laisser le signal passer avec penalite dans le score AI
+      //--- Si le score reste assez haut malgre la penalite, c'est un signal exceptionnel
      }
 
    //--- 3. PHASE SNIPER: Chasser le signal de precision
@@ -412,15 +416,34 @@ void TryExecuteSniperSignal(ENUM_SIGNAL_TYPE direction)
    g_last_sniper_score = sniper.sniper_score;
 
    if(!sniper.is_valid)
+     {
+      //--- FIX v4.3: Diagnostic - pourquoi le signal sniper est rejete
+      Print("A2Sniper Trading: Signal sniper invalide (Score=", sniper.sniper_score,
+            " Zone=", sniper.zone_type, " Timing=", sniper.timing,
+            " R:R=", DoubleToString(sniper.risk_reward, 1), ")");
       return;
+     }
 
    //--- 4. PHASE AI SCORING v4: Confirmation avec scoring negatif + regime
    SAIScoreV4 ai_score = g_ai_scoring.CalculateScore(direction);
    g_last_score = ai_score.total_score;
    g_last_signal_direction = (int)direction;
 
-   if(!ai_score.meets_threshold) return;
-   if(!g_ai_scoring.MeetsAllCriteria(direction)) return;
+   if(!ai_score.meets_threshold)
+     {
+      Print("A2Sniper Trading: Score AI sous seuil (", DoubleToString(ai_score.total_score, 1),
+            " < ", g_ai_scoring.GetMinThreshold(), " | Conf=", ai_score.confirming_engines, "/9)");
+      return;
+     }
+   if(!g_ai_scoring.MeetsAllCriteria(direction))
+     {
+      Print("A2Sniper Trading: Criteres non remplis (SRE=", ai_score.raw_sre,
+            " SMC=", DoubleToString(ai_score.raw_smc, 0),
+            " Liq=", DoubleToString(ai_score.raw_liq, 0),
+            " Vol=", DoubleToString(ai_score.raw_vol, 0),
+            " Session=", DoubleToString(ai_score.session_bonus, 0), ")");
+      return;
+     }
 
    //--- v4: Verifier que le score total est positif (scoring negatif peut rendre negatif)
    if(ai_score.total_score <= 0)
@@ -444,13 +467,22 @@ void TryExecuteSniperSignal(ENUM_SIGNAL_TYPE direction)
    if(RequireSMEConfirmation && !g_smart_money.HasSmartMoneyConfirmation(direction))
       return;
 
-   //--- 7. PHASE SESSION: Filtre de session v4 (plus strict)
+   //--- 7. PHASE SESSION: Filtre de session v4.3 (assoupli pour backtest)
    if(RequireSessionFilter && !g_session_engine.IsOptimalTradingTime())
      {
-      //--- v4: En dehors des sessions optimales, exiger score tres eleve
-      if(ai_score.total_score < 90.0) return;
-      //--- v4: En session asiatique, rejeter sauf score extreme
-      if(ai_score.session_bonus < -10.0 && ai_score.total_score < 95.0) return;
+      //--- FIX v4.3: Abaisser le seuil hors session (85 au lieu de 90)
+      //--- Beaucoup de bons signaux apparaissent en debut/fin de session
+      if(ai_score.total_score < 85.0)
+        {
+         Print("A2Sniper Trading: Hors session optimale + score insuffisant (", DoubleToString(ai_score.total_score, 1), " < 85)");
+         return;
+        }
+      //--- FIX v4.3: Session asiatique - bloquer sauf score tres eleve (90 au lieu de 95)
+      if(ai_score.session_bonus < -10.0 && ai_score.total_score < 90.0)
+        {
+         Print("A2Sniper Trading: Session asiatique - score insuffisant (", DoubleToString(ai_score.total_score, 1), " < 90)");
+         return;
+        }
      }
 
    //--- 8. PHASE ORDER BOOK: Validation du carnet d'ordres
