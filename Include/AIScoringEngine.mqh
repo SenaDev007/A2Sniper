@@ -325,33 +325,72 @@ double CAIScoringEngine::CalculateVolumeScoreWithPenalty(ENUM_SIGNAL_TYPE direct
 //| Calculer le score du regime de marche                             |
 //| Trending = bonus, Ranging = penalite, Volatile = risque          |
 //+------------------------------------------------------------------+
+//| Calculer le score du regime de marche v4                          |
+//| Combine ATR ratio, ADX, percentile, momentum pour une evaluation |
+//| fine du regime de marche (trending vs ranging vs volatile)        |
+//+------------------------------------------------------------------+
 double CAIScoringEngine::CalculateRegimeScore(ENUM_SIGNAL_TYPE direction) const
   {
    if(m_vole == NULL) return 50.0; // Neutre si pas disponible
 
    double atr_ratio = m_vole->GetATRRatio();
+   double atr_percentile = m_vole->GetATRPercentile();
+   double atr_momentum = m_vole->GetATRMomentum();
    double score = 50.0; // Neutre par defaut
 
-   //--- Tendance forte (ATR ratio eleve + direction claire)
-   if(atr_ratio >= 1.5)
+   //--- 1. Score basé sur ATR ratio (0-30 pts)
+   if(atr_ratio >= 1.2 && atr_ratio <= 1.8)
+      score += 25.0;     // Zone idéale: mouvement sain
+   else if(atr_ratio >= 1.0 && atr_ratio <= 2.2)
+      score += 15.0;     // Zone acceptable
+   else if(atr_ratio >= 0.8 && atr_ratio <= 2.8)
+      score += 5.0;      // Zone médiocre
+   else if(atr_ratio < 0.6)
+      score -= 20.0;     // Marché mort
+   else if(atr_ratio > 3.5)
+      score -= 25.0;     // Marché chaotique
+
+   //--- 2. Score basé sur ATR percentile (0-20 pts)
+   if(atr_percentile >= 35 && atr_percentile <= 75)
+      score += 20.0;     // Sweet spot
+   else if(atr_percentile >= 25 && atr_percentile <= 85)
+      score += 10.0;     // Acceptable
+   else if(atr_percentile < 15)
+      score -= 15.0;     // Volume anormalement bas
+   else if(atr_percentile > 92)
+      score -= 10.0;     // Volatilité extrême
+
+   //--- 3. Momentum bonus/malus (0-10 pts)
+   if(atr_momentum > 5 && atr_ratio < 2.0)
+      score += 10.0;     // Expansion depuis base = bon pour breakout
+   else if(atr_momentum > 15 && atr_ratio >= 2.0)
+      score -= 10.0;     // Expansion depuis déjà haut = risque
+   else if(atr_momentum < -5 && atr_ratio < 0.8)
+      score -= 5.0;      // Contraction = marché en sommeil
+
+   //--- 4. ADX alignment bonus (0-10 pts)
+   if(m_adx_value >= 25)
      {
-      //--- Verifier si la direction du signal est alignee avec la tendance
-      SMarketStructure m15_struct;
-      if(m_se != NULL)
-        {
-         // Utiliser le structure engine indirectement via SRE
-         score = 70.0; // Marche actif, potentiellement tendance
-        }
+      bool adx_bullish = (m_adx_di_plus > m_adx_di_minus);
+      if((direction == SIGNAL_BUY && adx_bullish) ||
+         (direction == SIGNAL_SELL && !adx_bullish))
+         score += 10.0;  // ADX confirme la direction
+      else
+         score -= 10.0;  // ADX contredit la direction
+     }
+   else if(m_adx_value >= 20 && m_adx_value < 25)
+     {
+      score -= 5.0;      // ADX faible = transition, pas clair
      }
 
-   //--- Marche en range (ATR ratio bas)
-   if(atr_ratio < 0.7)
-      score = 20.0; // Marche plat = danger pour les reversals
+   //--- 5. v4: Liquidity void bonus (max +10 pts)
+   if(m_le != NULL)
+     {
+      double void_score = m_le->GetVoidScore(direction);
+      score += MathMin(void_score * 0.33, 10.0);  // Poids réduit (3x moins)
+     }
 
-   //--- ADX si disponible
-   //--- (On utilise m_adx_value mis a jour par UpdateADX)
-
-   return score;
+   return MathMax(MathMin(score, 100.0), -30.0);
   }
 
 //+------------------------------------------------------------------+

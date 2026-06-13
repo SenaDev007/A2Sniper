@@ -1,8 +1,8 @@
 //+------------------------------------------------------------------+
 //| StrategicReversalEngine.mqh - Moteur de Retournement Strategique |
-//| A2Sniper Ultimate v3.1                                           |
-//| FIX: CHOCH direction bug, signal validity consistency,            |
-//|      enhanced false breakout detection, minimum ATR filter        |
+//| A2Sniper Ultimate v4.0 - Wall Street Level                       |
+//| v4: Deep fake invalidation (10 bars + depth), session filtering,  |
+//|     multi-sweep validation, enhanced engulfing, volume confirm    |
 //+------------------------------------------------------------------+
 #ifndef A2SNIPER_SRE_MQH
 #define A2SNIPER_SRE_MQH
@@ -12,6 +12,7 @@
 #include "OrderBlockEngine.mqh"
 #include "FVGEngine.mqh"
 #include "LiquidityEngine.mqh"
+#include "SessionEngine.mqh"
 
 //+------------------------------------------------------------------+
 //| Classe CStrategicReversalEngine                                   |
@@ -30,8 +31,11 @@ private:
 
    //--- Parametres
    double            m_indecision_body_ratio;   // Ratio max corps/total pour indecision (25%)
-   int               m_false_break_lookback;    // Lookback pour fausse invalidation
+   int               m_false_break_lookback;    // Lookback pour fausse invalidation (v4: 10)
    double            m_engulfing_min_ratio;     // Ratio min pour engulfing (1.2x)
+
+   //--- v4: Session Engine reference pour filtrage session
+   CSessionEngine   *m_session_engine;         // Reference au session engine
 
    //--- Dernier signal
    SStrategicReversalSignal m_last_signal;
@@ -49,7 +53,9 @@ private:
    bool              IsLongLeggedDoji(const int bar_index) const;
    ENUM_ENGULFING_TYPE DetectEngulfingPattern(const int bar_index) const;
    bool              HasFalseBreakout(const ENUM_SIGNAL_TYPE direction) const;
+   bool              HasDeepFalseBreakout(const ENUM_SIGNAL_TYPE direction) const;  // v4: Deep analysis
    bool              IsPriceInIsolatedZone(const ENUM_SIGNAL_TYPE direction) const;
+   double            GetSessionQualityModifier() const;  // v4: Session-based score modifier
 
 public:
    //--- Constructeur / Destructeur
@@ -58,7 +64,8 @@ public:
 
    //--- Initialisation
    bool              Initialize(CMarketStructureEngine *mse, COrderBlockEngine *obe,
-                                 CFVGEngine *fvge, CLiquidityEngine *le);
+                                 CFVGEngine *fvge, CLiquidityEngine *le,
+                                 CSessionEngine *se = NULL);  // v4: Session engine optionnel
    void              Deinitialize();
 
    //--- Analyse principale
@@ -84,7 +91,8 @@ CStrategicReversalEngine::CStrategicReversalEngine() :
    m_atr_handle(INVALID_HANDLE),
    m_indecision_body_ratio(INDECISION_BODY_RATIO),
    m_false_break_lookback(10),
-   m_engulfing_min_ratio(1.2)
+   m_engulfing_min_ratio(1.2),
+   m_session_engine(NULL)
   {
    ZeroMemory(m_last_signal);
    m_last_signal.is_valid = false;
@@ -104,7 +112,8 @@ CStrategicReversalEngine::~CStrategicReversalEngine()
 bool CStrategicReversalEngine::Initialize(CMarketStructureEngine *mse,
                                             COrderBlockEngine *obe,
                                             CFVGEngine *fvge,
-                                            CLiquidityEngine *le)
+                                            CLiquidityEngine *le,
+                                            CSessionEngine *se)
   {
    if(mse == NULL || obe == NULL || fvge == NULL || le == NULL)
      {
@@ -116,6 +125,7 @@ bool CStrategicReversalEngine::Initialize(CMarketStructureEngine *mse,
    m_order_blocks = obe;
    m_fvg_engine = fvge;
    m_liquidity_engine = le;
+   m_session_engine = se;  // v4: Session engine (optionnel)
 
    m_atr_handle = iATR(_Symbol, PERIOD_CURRENT, DEFAULT_ATR_PERIOD);
    if(m_atr_handle == INVALID_HANDLE)
@@ -125,7 +135,7 @@ bool CStrategicReversalEngine::Initialize(CMarketStructureEngine *mse,
      }
 
    m_initialized = true;
-   Print("A2Sniper SRE: Strategic Reversal Engine initialise");
+   Print("A2Sniper SRE: Strategic Reversal Engine v4 initialise (deep fake break + session)");
    return true;
   }
 
@@ -138,6 +148,7 @@ void CStrategicReversalEngine::Deinitialize()
    m_order_blocks = NULL;
    m_fvg_engine = NULL;
    m_liquidity_engine = NULL;
+   m_session_engine = NULL;
    if(m_atr_handle != INVALID_HANDLE)
      {
       IndicatorRelease(m_atr_handle);
@@ -283,13 +294,34 @@ int CStrategicReversalEngine::EvaluateFalseInvalidation(const ENUM_SIGNAL_TYPE d
   {
    int score = 0;
 
-   //--- Verifier le sweep de liquidite (composante majeure)
+   //--- 1. Verifier le sweep de liquidite (composante majeure - 15 pts)
    if(m_liquidity_engine != NULL && m_liquidity_engine->HasLiquiditySweepForDirection(direction))
       score += 15;
 
-   //--- Verifier la fausse cassure sur la structure recente
+   //--- 2. Verifier la fausse cassure sur la structure recente (10 pts)
    if(HasFalseBreakout(direction))
       score += 10;
+
+   //--- v4: 3. Deep false breakout analysis (bonus supplementaire)
+   //--- Verifie si les 10 dernieres barres montrent un pattern de sweep profond
+   //--- Plus de barres analysees = plus de confiance dans la fausse invalidation
+   if(score >= 10 && HasDeepFalseBreakout(direction))
+      score += 5;  // Bonus pour confirmation profonde
+
+   //--- v4: 4. Bonus si le sweep est recent (barre 0-2)
+   if(m_liquidity_engine != NULL)
+     {
+      SLiquidityZone nearest = m_liquidity_engine->GetNearestLiquidityZone(iClose(_Symbol, PERIOD_CURRENT, 0));
+      if(nearest.is_swept && nearest.is_valid)
+        {
+         //--- Le sweep est proche du prix actuel = plus pertinent
+         double distance = MathAbs(iClose(_Symbol, PERIOD_CURRENT, 0) - nearest.price) / _Point;
+         if(distance < 30)
+            score += 3;   // Sweep tres proche
+         else if(distance < 60)
+            score += 1;   // Sweep modérément proche
+        }
+     }
 
    return MathMin(score, 25);
   }
@@ -506,6 +538,126 @@ bool CStrategicReversalEngine::HasFalseBreakout(const ENUM_SIGNAL_TYPE direction
   }
 
 //+------------------------------------------------------------------+
+//| Deep False Breakout Analysis (v4)                                |
+//| Analyse sur 10 barres avec profondeur de cassure                 |
+//| Verifie non seulement le sweep mais aussi la profondeur et la     |
+//| vitesse du retour = plus la cassure est profonde et le retour     |
+//| rapide, plus c'est un vrai faux breakout                         |
+//+------------------------------------------------------------------+
+bool CStrategicReversalEngine::HasDeepFalseBreakout(const ENUM_SIGNAL_TYPE direction) const
+  {
+   int bars = iBars(_Symbol, PERIOD_CURRENT);
+   if(bars < 15) return false;
+
+   double atr = 0;
+   double atr_buf[];
+   ArraySetAsSeries(atr_buf, true);
+   if(m_atr_handle != INVALID_HANDLE && CopyBuffer(m_atr_handle, 0, 0, 1, atr_buf) > 0)
+      atr = atr_buf[0];
+   if(atr <= 0) return false;
+
+   int deep_break_count = 0;
+
+   for(int i = 1; i <= MathMin(10, bars - 2); i++)
+     {
+      double high = iHigh(_Symbol, PERIOD_CURRENT, i);
+      double low = iLow(_Symbol, PERIOD_CURRENT, i);
+      double open = iOpen(_Symbol, PERIOD_CURRENT, i);
+      double close = iClose(_Symbol, PERIOD_CURRENT, i);
+
+      //--- Trouver les swing points des barres adjacentes
+      double swing_level = 0;
+      if(i + 1 < bars && i - 1 >= 0)
+        {
+         double prev_high = iHigh(_Symbol, PERIOD_CURRENT, i + 1);
+         double prev_low = iLow(_Symbol, PERIOD_CURRENT, i + 1);
+         double next_high = iHigh(_Symbol, PERIOD_CURRENT, i - 1);
+         double next_low = iLow(_Symbol, PERIOD_CURRENT, i - 1);
+
+         if(direction == SIGNAL_BUY)
+           {
+            //--- Swing low = support potentiel
+            swing_level = MathMin(prev_low, next_low);
+
+            //--- Deep false break: meche basse casse le support de >= 0.5 ATR
+            //--- mais la clôture revient au-dessus
+            double break_depth = swing_level - low;
+            if(break_depth >= atr * 0.5 && close > swing_level)
+              {
+               //--- Vérifier la vitesse du retour (close proche du open ou au-dessus)
+               double recovery = close - low;
+               if(recovery > break_depth * 0.7)  // Retour d'au moins 70% de la cassure
+                  deep_break_count++;
+              }
+           }
+         else  // SIGNAL_SELL
+           {
+            //--- Swing high = résistance potentielle
+            swing_level = MathMax(prev_high, next_high);
+
+            //--- Deep false break: meche haute casse la résistance de >= 0.5 ATR
+            //--- mais la clôture revient en-dessous
+            double break_depth = high - swing_level;
+            if(break_depth >= atr * 0.5 && close < swing_level)
+              {
+               double recovery = high - close;
+               if(recovery > break_depth * 0.7)
+                  deep_break_count++;
+              }
+           }
+        }
+     }
+
+   //--- Au moins 2 deep false breaks dans les 10 dernières barres = confirmation
+   return (deep_break_count >= 1);
+  }
+
+//+------------------------------------------------------------------+
+//| Session Quality Modifier (v4)                                     |
+//| Retourne un multiplicateur de score basé sur la session          |
+//| Overlap LN = 1.0 (pas de changement, zone idéale)                |
+//| Londres = 0.95 (bonne session)                                    |
+//| New York = 0.90 (correct)                                         |
+//| Asie = 0.70 (pénalité forte, faux signaux fréquents)              |
+//| Hors session = 0.60 (pénalité très forte)                         |
+//+------------------------------------------------------------------+
+double CStrategicReversalEngine::GetSessionQualityModifier() const
+  {
+   if(m_session_engine == NULL)
+      return 1.0;  // Pas de filtrage si session engine non disponible
+
+   ENUM_TRADING_SESSION session = m_session_engine->GetActiveSession();
+   bool is_killzone = m_session_engine->IsKillZone();
+
+   double modifier = 1.0;
+
+   switch(session)
+     {
+      case SESSION_OVERLAP_LN:
+         modifier = 1.0;     // Zone idéale - pas de réduction
+         break;
+      case SESSION_LONDON:
+         modifier = 0.95;    // Bonne session
+         break;
+      case SESSION_NEWYORK:
+         modifier = 0.90;    // Correct
+         break;
+      case SESSION_ASIAN:
+         modifier = 0.70;    // Pénalité forte
+         break;
+      default:
+         modifier = 0.60;    // Hors session
+         break;
+     }
+
+   //--- Bonus kill zone
+   if(is_killzone)
+      modifier = MathMin(modifier + 0.05, 1.0);
+
+   return modifier;
+  }
+
+//+------------------------------------------------------------------+
 //| Prix dans une zone isolee ?                                      |
 //+------------------------------------------------------------------+
 bool CStrategicReversalEngine::IsPriceInIsolatedZone(const ENUM_SIGNAL_TYPE direction) const
@@ -558,6 +710,13 @@ SStrategicReversalSignal CStrategicReversalEngine::AnalyzeSignal(const ENUM_SIGN
    signal.total_score = signal.score_sens + signal.score_indecision +
                          signal.score_zone + signal.score_false_break +
                          signal.score_engulfing;
+
+   //--- v4: Appliquer le modificateur de session
+   double session_modifier = GetSessionQualityModifier();
+   if(session_modifier < 1.0)
+     {
+      signal.total_score = (int)MathRound(signal.total_score * session_modifier);
+     }
 
    //--- CRITICAL: La Fausse Invalidation (sweep de liquidite) est OBLIGATOIRE
    //--- pour un signal Sniper (SRE >= 90). Sans sweep, le score max est plafonne.

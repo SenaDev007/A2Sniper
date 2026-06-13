@@ -5,11 +5,12 @@
 //| Full integration: Sniper + State Machine + Adaptive Risk         |
 //+------------------------------------------------------------------+
 #property copyright "Copyright 2024, YEHI OR Tech Solutions"
-#property version   "4.00"
-#property description "A2Sniper Trading v4.0 - Wall Street Level Trading System"
+#property version   "4.10"
+#property description "A2Sniper Trading v4.1 - Wall Street Level Trading System"
 #property description "Trade Sniper + Adaptive Risk + Position State Machine"
 #property description "SMC/ICT + Strategic Reversal + Smart Money"
-#property description "95%+ Reliability Target"
+#property description "VSA Volume + Graduated Volatility + Liquidity Voids"
+#property description "80%+ Win Rate Target"
 
 //+------------------------------------------------------------------+
 //| Includes - Full Ultimate Architecture                            |
@@ -151,9 +152,10 @@ int               g_last_sniper_score = 0;
 int OnInit()
   {
    Print("========================================");
-   Print("  A2Sniper Trading v4.0 - Wall Street Level");
+   Print("  A2Sniper Trading v4.1 - Wall Street Level");
    Print("  Trade Sniper + Adaptive Risk + PSM");
-   Print("  95%+ Reliability Target");
+   Print("  VSA Volume + Graduated Vol + Liq Voids");
+   Print("  80%+ Win Rate Target");
    Print("========================================");
 
    //--- 1. Initialiser le Risk Manager
@@ -185,7 +187,7 @@ int OnInit()
      { Print("A2Sniper Trading: ERREUR - Volatility Engine"); return INIT_FAILED; }
 
    //--- 3. Moteurs composites
-   if(!g_sre.Initialize(&g_market_structure, &g_order_blocks, &g_fvg_engine, &g_liquidity_engine))
+   if(!g_sre.Initialize(&g_market_structure, &g_order_blocks, &g_fvg_engine, &g_liquidity_engine, &g_session_engine))
      { Print("A2Sniper Trading: ERREUR - Strategic Reversal Engine"); return INIT_FAILED; }
    if(!g_smart_money.Initialize(&g_market_structure, &g_order_blocks, &g_fvg_engine, &g_liquidity_engine))
      { Print("A2Sniper Trading: ERREUR - Smart Money Engine"); return INIT_FAILED; }

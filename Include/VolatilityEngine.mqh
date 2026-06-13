@@ -1,7 +1,8 @@
 //+------------------------------------------------------------------+
-//| VolatilityEngine.mqh - Analyse de la Volatilité                  |
-//| A2Sniper Ultimate v3.0                                           |
-//| ATR 14, Volatilité moyenne/extrême, Filtre Forex/Synthétiques   |
+//| VolatilityEngine.mqh - Analyse de la Volatilité v4.0              |
+//| A2Sniper Ultimate v4.0 - Wall Street Level                       |
+//| v4: Graduated scoring, volatility momentum, expansion/contraction  |
+//|     detection, negative scoring for dangerous conditions           |
 //+------------------------------------------------------------------+
 #ifndef A2SNIPER_VOLATILITY_MQH
 #define A2SNIPER_VOLATILITY_MQH
@@ -9,7 +10,7 @@
 #include "CommonTypes.mqh"
 
 //+------------------------------------------------------------------+
-//| Classe CVolatilityEngine                                         |
+//| Classe CVolatilityEngine v4                                       |
 //+------------------------------------------------------------------+
 class CVolatilityEngine
   {
@@ -29,6 +30,15 @@ private:
    double            m_average_atr;
    double            m_atr_ratio;            // ATR actuel / ATR moyen
 
+   //--- v4: Momentum de volatilité (expansion vs contraction)
+   double            m_prev_atr_ratio;       // Ratio ATR précédent
+   double            m_atr_momentum;         // Taux de changement de l'ATR
+   bool              m_expanding;            // Volatilité en expansion
+   bool              m_contracting;          // Volatilité en contraction
+
+   //--- v4: Percentile de volatilité
+   double            m_atr_percentile;       // Où se situe l'ATR actuel (0-100)
+
 public:
    //--- Constructeur / Destructeur
                      CVolatilityEngine();
@@ -45,6 +55,10 @@ public:
    double            GetCurrentATR() const { return m_current_atr; }
    double            GetAverageATR() const { return m_average_atr; }
    double            GetATRRatio() const { return m_atr_ratio; }
+   double            GetATRMomentum() const { return m_atr_momentum; }
+   double            GetATRPercentile() const { return m_atr_percentile; }
+   bool              IsExpanding() const { return m_expanding; }
+   bool              IsContracting() const { return m_contracting; }
 
    //--- Vérifications
    bool              IsVolatilityAcceptable() const;
@@ -60,6 +74,10 @@ public:
 
    //--- Info
    string            GetVolatilityInfo() const;
+
+private:
+   double            CalculateATRPercentile();
+   void              UpdateMomentum();
   };
 
 //+------------------------------------------------------------------+
@@ -74,7 +92,12 @@ CVolatilityEngine::CVolatilityEngine() :
    m_avg_atr_period(50),
    m_current_atr(0),
    m_average_atr(0),
-   m_atr_ratio(1.0)
+   m_atr_ratio(1.0),
+   m_prev_atr_ratio(1.0),
+   m_atr_momentum(0),
+   m_expanding(false),
+   m_contracting(false),
+   m_atr_percentile(50.0)
   {
    ArraySetAsSeries(m_atr_buffer, true);
   }
@@ -105,7 +128,7 @@ bool CVolatilityEngine::Initialize(int atr_period, double min_mult, double max_m
 
    ArraySetAsSeries(m_atr_buffer, true);
    m_initialized = true;
-   Print("A2Sniper VolE: Volatility Engine initialisé");
+   Print("A2Sniper VolE: Volatility Engine v4 initialisé (graduated scoring + momentum)");
    return true;
   }
 
@@ -120,6 +143,46 @@ void CVolatilityEngine::Deinitialize()
       m_atr_handle = INVALID_HANDLE;
      }
    m_initialized = false;
+  }
+
+//+------------------------------------------------------------------+
+//| Calculer le percentile de l'ATR actuel                           |
+//| Compare l'ATR actuel aux N derniers ATR pour situer sa position  |
+//+------------------------------------------------------------------+
+double CVolatilityEngine::CalculateATRPercentile()
+  {
+   if(m_avg_atr_period < 10 || m_current_atr <= 0)
+      return 50.0;
+
+   //--- On utilise le buffer déjà chargé
+   int count_above = 0;
+   int total = MathMin(m_avg_atr_period, ArraySize(m_atr_buffer) - 1);
+
+   for(int i = 1; i <= total; i++)
+     {
+      if(m_atr_buffer[i] <= m_current_atr)
+         count_above++;
+     }
+
+   return ((double)count_above / (double)total) * 100.0;
+  }
+
+//+------------------------------------------------------------------+
+//| Mettre à jour le momentum de volatilité                           |
+//+------------------------------------------------------------------+
+void CVolatilityEngine::UpdateMomentum()
+  {
+   //--- Momentum = taux de changement du ratio ATR
+   if(m_prev_atr_ratio > 0)
+      m_atr_momentum = (m_atr_ratio - m_prev_atr_ratio) / m_prev_atr_ratio * 100.0;
+   else
+      m_atr_momentum = 0;
+
+   //--- Expansion/Contraction
+   m_expanding = (m_atr_momentum > 5.0);    // +5% = expansion
+   m_contracting = (m_atr_momentum < -5.0);  // -5% = contraction
+
+   m_prev_atr_ratio = m_atr_ratio;
   }
 
 //+------------------------------------------------------------------+
@@ -147,6 +210,10 @@ bool CVolatilityEngine::Update()
       m_atr_ratio = m_current_atr / m_average_atr;
    else
       m_atr_ratio = 1.0;
+
+   //--- v4: Percentile et momentum
+   m_atr_percentile = CalculateATRPercentile();
+   UpdateMomentum();
 
    return true;
   }
@@ -192,26 +259,60 @@ bool CVolatilityEngine::IsVolatilityExtreme() const
   }
 
 //+------------------------------------------------------------------+
-//| Score de volatilité (0-100)                                      |
+//| Score de volatilité v4 - GRADUE (pas binaire)                    |
+//| Utilise une interpolation continue au lieu de seuils durs        |
+//| Score peut être NEGATIF si conditions dangereuses                |
 //+------------------------------------------------------------------+
 double CVolatilityEngine::GetVolatilityScore() const
   {
-   //--- Volatilité extrême = DANGEREUX, score le plus bas
-   if(IsVolatilityExtreme())
-      return 10.0;
-   //--- Volatilité trop haute = risqué, score bas
-   if(IsVolatilityTooHigh())
-      return 20.0;
-   //--- Volatilité trop basse = pas assez de mouvement
-   if(IsVolatilityTooLow())
-      return 20.0;
-   //--- Zone idéale: ATR ratio entre 1.0 et 2.0
-   if(m_atr_ratio >= 1.0 && m_atr_ratio <= 2.0)
-      return 100.0;
-   //--- Zone acceptable
-   if(m_atr_ratio >= 0.7 && m_atr_ratio <= 2.5)
-      return 60.0;
-   return 40.0;
+   double score = 0;
+
+   //--- 1. Score basé sur le percentile (0-60 pts)
+   //--- Le sweet spot est entre 40-70 percentile (ni trop calme, ni trop fou)
+   if(m_atr_percentile >= 35 && m_atr_percentile <= 75)
+      score = 60.0;                                     // Zone idéale
+   else if(m_atr_percentile >= 25 && m_atr_percentile <= 85)
+      score = 45.0;                                     // Zone acceptable
+   else if(m_atr_percentile >= 15 && m_atr_percentile <= 92)
+      score = 30.0;                                     // Zone médiocre
+   else if(m_atr_percentile < 10)
+      score = -10.0;                                    // PENALITÉ: Marché mort
+   else if(m_atr_percentile > 95)
+      score = -15.0;                                    // PANALITÉ: Trop volatile, spreads explosent
+
+   //--- 2. Score basé sur l'ATR ratio (0-40 pts, interpolation linéaire)
+   //--- Zone optimale: ratio 1.0 à 1.8 (mouvement sain sans chaos)
+   double ratio_score = 0;
+   if(m_atr_ratio >= 1.0 && m_atr_ratio <= 1.8)
+      ratio_score = 40.0;                               // Zone idéale
+   else if(m_atr_ratio >= 0.8 && m_atr_ratio < 1.0)
+      ratio_score = 20.0 + (m_atr_ratio - 0.8) * 100.0; // 20-40 interpolation
+   else if(m_atr_ratio >= 1.8 && m_atr_ratio <= 2.2)
+      ratio_score = 40.0 - (m_atr_ratio - 1.8) * 50.0;   // 40-20 interpolation
+   else if(m_atr_ratio >= 0.6 && m_atr_ratio < 0.8)
+      ratio_score = 10.0 + (m_atr_ratio - 0.6) * 50.0;   // 10-20 interpolation
+   else if(m_atr_ratio > 2.2 && m_atr_ratio <= 2.8)
+      ratio_score = 10.0 - (m_atr_ratio - 2.2) * 16.6;   // 10-0 interpolation
+   else if(m_atr_ratio < 0.5)
+      ratio_score = -10.0;                              // Pas de mouvement = pas de trade
+   else if(m_atr_ratio > 3.5)
+      ratio_score = -20.0;                              // Chaos = danger
+   else
+      ratio_score = 0.0;
+
+   score += ratio_score;
+
+   //--- 3. Momentum bonus/malus (-15 à +15 pts)
+   if(m_expanding && m_atr_ratio < 2.0)
+      score += 10.0;       // Expansion modérée = bon pour les breakouts
+   else if(m_expanding && m_atr_ratio >= 2.0)
+      score -= 15.0;       // Expansion depuis déjà haut = risque d'épuisement
+   else if(m_contracting && m_atr_ratio < 0.7)
+      score -= 5.0;        // Contraction déjà bas = marché en sommeil
+   else if(m_contracting && m_atr_ratio >= 0.7)
+      score += 5.0;        // Contraction depuis normal = calme avant la tempête (setup)
+
+   return MathMax(score, -30.0);  // Plafond minimum à -30
   }
 
 //+------------------------------------------------------------------+
@@ -254,9 +355,10 @@ double CVolatilityEngine::CalculateATRTakeProfit(const ENUM_SIGNAL_TYPE directio
 //+------------------------------------------------------------------+
 string CVolatilityEngine::GetVolatilityInfo() const
   {
-   return StringFormat("ATR: %.5f | AvgATR: %.5f | Ratio: %.2f | OK=%s | Score=%.0f",
-                       m_current_atr, m_average_atr, m_atr_ratio,
-                       IsVolatilityAcceptable() ? "Y" : "N",
+   return StringFormat("ATR: %.5f | AvgATR: %.5f | Ratio: %.2f | Pctl: %.0f | Mom: %+.1f%% | %s | Score=%.0f",
+                       m_current_atr, m_average_atr, m_atr_ratio, m_atr_percentile,
+                       m_atr_momentum,
+                       m_expanding ? "EXPANDING" : (m_contracting ? "CONTRACTING" : "STABLE"),
                        GetVolatilityScore());
   }
 

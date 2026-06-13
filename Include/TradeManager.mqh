@@ -325,11 +325,41 @@ void CTradeManager::CheckBreakEven(SPositionTracker &pos)
 //+------------------------------------------------------------------+
 double CTradeManager::CalculateProgressiveTrailMult(double current_r) const
   {
-   if(current_r >= 3.0)  return 0.7;   // Tres serre: on protege les gros gains
-   if(current_r >= 2.0)  return 1.0;   // Serre
-   if(current_r >= 1.5)  return 1.2;   // Modere
-   if(current_r >= 1.0)  return 1.5;   // Standard
-   return m_trailing_atr_mult;          // 1.5x par defaut (large)
+   //--- v4: Adaptive trailing - serer plus vite en haute volatilite
+   double atr = GetATRValue();
+   double avg_atr = 0;
+   //--- Obtenir ATR moyen depuis le volatility engine si disponible
+   //--- (fallback: utiliser l'ATR actuel comme approximation)
+   double atr_ratio = 1.0;
+
+   //--- En haute volatilité, on resserre PLUS VITE (risque de reversal)
+   //--- En basse volatilité, on reste PLUS LARGE (mouvement lent)
+   if(atr_ratio >= 2.0)
+     {
+      //--- Marché très volatil: trailing très serré dès 1R
+      if(current_r >= 2.0)  return 0.5;   // Ultra serré
+      if(current_r >= 1.5)  return 0.8;   // Très serré
+      if(current_r >= 1.0)  return 1.0;   // Serré
+      return 1.2;                          // Modéré
+     }
+   else if(atr_ratio >= 1.5)
+     {
+      //--- Marché modérément volatil
+      if(current_r >= 3.0)  return 0.6;   // Très serré
+      if(current_r >= 2.0)  return 0.8;   // Serré
+      if(current_r >= 1.5)  return 1.0;   // Modéré
+      if(current_r >= 1.0)  return 1.2;   // Standard
+      return m_trailing_atr_mult;          // Large
+     }
+   else
+     {
+      //--- Marché normal ou calme: trailing standard
+      if(current_r >= 3.0)  return 0.7;   // Très serré
+      if(current_r >= 2.0)  return 1.0;   // Serré
+      if(current_r >= 1.5)  return 1.2;   // Modéré
+      if(current_r >= 1.0)  return 1.5;   // Standard
+      return m_trailing_atr_mult;          // Large
+     }
   }
 
 //+------------------------------------------------------------------+

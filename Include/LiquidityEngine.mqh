@@ -1,7 +1,8 @@
 //+------------------------------------------------------------------+
-//| LiquidityEngine.mqh - Détection de Zones de Liquidité            |
-//| A2Sniper Ultimate v3.0                                           |
-//| BSL/SSL, Equal Highs/Lows, Double Top/Bottom, Liquidity Sweeps   |
+//| LiquidityEngine.mqh - Détection de Zones de Liquidité v4.0      |
+//| A2Sniper Ultimate v4.0 - Wall Street Level                       |
+//| v4: Dynamic ATR-based tolerance, liquidity void detection,        |
+//|     instrument-aware tolerance, enhanced sweep validation         |
 //+------------------------------------------------------------------+
 #ifndef A2SNIPER_LIQUIDITY_MQH
 #define A2SNIPER_LIQUIDITY_MQH
@@ -17,11 +18,19 @@ private:
    bool              m_initialized;
    int               m_lookback;
    double            m_equal_tolerance;      // Tolérance en pips pour equal highs/lows
+   bool              m_dynamic_tolerance;    // v4: Tolérance dynamique basée ATR
    int               m_atr_handle;
+   double            m_current_atr;          // v4: ATR actuel pour tolérance dynamique
 
    //--- Zones de liquidité
    SLiquidityZone    m_zones[];
    int               m_zone_count;
+
+   //--- v4: Vides de liquidité (liquidity voids)
+   double            m_void_high[];          // Limite haute du vide
+   double            m_void_low[];           // Limite basse du vide
+   datetime          m_void_time[];          // Heure du vide
+   int               m_void_count;
 
    //--- Sweeps détectés
    bool              m_last_bsl_sweep;       // Dernier sweep BSL
@@ -38,7 +47,9 @@ private:
    bool              DetectDoubleTop();
    bool              DetectDoubleBottom();
    bool              DetectLiquiditySweep(const double current_price);
+   bool              DetectLiquidityVoids();  // v4: Détection des vides
    bool              ArePricesEqual(const double price1, const double price2) const;
+   double            GetDynamicTolerance() const;  // v4: Tolérance ATR-aware
    void              CleanupOldZones();
    double            GetATRValue(const int shift);
 
@@ -67,6 +78,11 @@ public:
    double            GetLiquidityScore(const ENUM_SIGNAL_TYPE direction) const;
    bool              HasLiquiditySweepForDirection(const ENUM_SIGNAL_TYPE direction) const;
 
+   //--- v4: Liquidity Voids
+   int               GetVoidCount() const { return m_void_count; }
+   bool              IsPriceInVoid(const double price) const;
+   double            GetVoidScore(const ENUM_SIGNAL_TYPE direction) const;
+
    //--- Info
    string            GetZoneInfo(const SLiquidityZone &zone) const;
   };
@@ -78,8 +94,11 @@ CLiquidityEngine::CLiquidityEngine() :
    m_initialized(false),
    m_lookback(LIQUIDITY_LOOKBACK),
    m_equal_tolerance(EQUAL_TOLERANCE_PIPS),
+   m_dynamic_tolerance(true),
    m_atr_handle(INVALID_HANDLE),
+   m_current_atr(0),
    m_zone_count(0),
+   m_void_count(0),
    m_last_bsl_sweep(false),
    m_last_ssl_sweep(false),
    m_last_sweep_time(0),
@@ -89,6 +108,9 @@ CLiquidityEngine::CLiquidityEngine() :
    m_ssl_sweep_bar(-1)
   {
    ArrayResize(m_zones, 0);
+   ArrayResize(m_void_high, 0);
+   ArrayResize(m_void_low, 0);
+   ArrayResize(m_void_time, 0);
   }
 
 //+------------------------------------------------------------------+
@@ -115,7 +137,7 @@ bool CLiquidityEngine::Initialize(int lookback, double equal_tolerance_pips)
      }
 
    m_initialized = true;
-   Print("A2Sniper LE: Liquidity Engine initialisé");
+   Print("A2Sniper LE: Liquidity Engine v4 initialisé (dynamic tolerance + voids)");
    return true;
   }
 
@@ -133,15 +155,49 @@ void CLiquidityEngine::Deinitialize()
   }
 
 //+------------------------------------------------------------------+
-//| Vérifier si deux prix sont "égaux" (dans la tolérance)          |
+//| Tolérance dynamique basée sur l'ATR et l'instrument              |
+//| JPY pairs: tolérance plus large (ATR ~0.50-1.00)                 |
+//| Forex standard: tolérance normale (ATR ~0.0005-0.0020)           |
+//| Crypto: tolérance très large (ATR très variable)                  |
 //+------------------------------------------------------------------+
-bool CLiquidityEngine::ArePricesEqual(const double price1, const double price2) const
+double CLiquidityEngine::GetDynamicTolerance() const
   {
-   return (MathAbs(price1 - price2) / _Point) <= m_equal_tolerance;
+   if(!m_dynamic_tolerance || m_current_atr <= 0)
+      return m_equal_tolerance;    // Fallback: tolérance fixe
+
+   //--- Tolérance = 15% de l'ATR (en pips)
+   //--- Cela s'adapte automatiquement à la volatilité de l'instrument
+   double atr_pips = m_current_atr / _Point;
+   double dynamic_tol = atr_pips * 0.15;
+
+   //--- Plancher et plafond pour éviter les extrêmes
+   double min_tol = 1.0;      // Au minimum 1 pip
+   double max_tol = 15.0;     // Au maximum 15 pips
+
+   dynamic_tol = MathMax(dynamic_tol, min_tol);
+   dynamic_tol = MathMin(dynamic_tol, max_tol);
+
+   return dynamic_tol;
   }
 
 //+------------------------------------------------------------------+
-//| Détection Equal Highs                                            |
+//| Vérifier si deux prix sont "égaux" (dans la tolérance)          |
+//| v4: Utilise la tolérance dynamique si disponible                  |
+//+------------------------------------------------------------------+
+bool CLiquidityEngine::ArePricesEqual(const double price1, const double price2) const
+  {
+   double tolerance = m_equal_tolerance;
+   //--- Si tolérance dynamique disponible, l'utiliser
+   if(m_dynamic_tolerance && m_current_atr > 0)
+     {
+      double dyn_tol = GetDynamicTolerance();
+      tolerance = dyn_tol;
+     }
+   return (MathAbs(price1 - price2) / _Point) <= tolerance;
+  }
+
+//+------------------------------------------------------------------+
+//| Détection Equal Highs (v4: ATR-based strength scoring)           |
 //+------------------------------------------------------------------+
 bool CLiquidityEngine::DetectEqualHighs()
   {
@@ -174,11 +230,18 @@ bool CLiquidityEngine::DetectEqualHighs()
          if(prev_high_bar > 0 && ArePricesEqual(high, prev_high))
            {
             //--- Equal High détecté = BSL (Buy Side Liquidity)
+            //--- v4: Force basée sur la proximité temporelle
+            int bar_distance = prev_high_bar - i;
+            double strength = 80.0;
+            if(bar_distance <= 10) strength = 95.0;    // Equal highs proches = plus fort
+            else if(bar_distance <= 20) strength = 85.0;
+            else strength = 70.0;                        // Equal highs éloignés
+
             SLiquidityZone zone;
             zone.price = (high + prev_high) / 2.0;
             zone.time = iTime(_Symbol, PERIOD_CURRENT, i);
             zone.type = LIQUIDITY_EQUAL_HIGH;
-            zone.strength = 80.0;
+            zone.strength = strength;
             zone.is_swept = false;
             zone.is_valid = true;
 
@@ -431,12 +494,124 @@ double CLiquidityEngine::GetATRValue(const int shift)
   }
 
 //+------------------------------------------------------------------+
-//| Mise à jour principale                                          |
+//| Détection des vides de liquidité (Liquidity Voids)               |
+//| Un vide = zone où le prix a bougé très vite sans échange         |
+//| Gaps entre les bougies, grandes bougies avec peu de mèches        |
+//| Ces zones attirent le prix comme un aimant pour combler le vide   |
+//+------------------------------------------------------------------+
+bool CLiquidityEngine::DetectLiquidityVoids()
+  {
+   int bars = iBars(_Symbol, PERIOD_CURRENT);
+   if(bars < 10) return false;
+
+   double atr = m_current_atr;
+   if(atr <= 0) return false;
+
+   m_void_count = 0;
+   ArrayResize(m_void_high, 0);
+   ArrayResize(m_void_low, 0);
+   ArrayResize(m_void_time, 0);
+
+   for(int i = 1; i < MathMin(m_lookback, bars - 1); i++)
+     {
+      double prev_high = iHigh(_Symbol, PERIOD_CURRENT, i + 1);
+      double prev_low = iLow(_Symbol, PERIOD_CURRENT, i + 1);
+      double curr_high = iHigh(_Symbol, PERIOD_CURRENT, i);
+      double curr_low = iLow(_Symbol, PERIOD_CURRENT, i);
+
+      //--- Void: gap entre le low actuel et le high précédent (bullish void)
+      if(curr_low > prev_high)
+        {
+         double gap = curr_low - prev_high;
+         if(gap >= atr * 0.3)   // Gap significatif
+           {
+            m_void_count++;
+            ArrayResize(m_void_high, m_void_count);
+            ArrayResize(m_void_low, m_void_count);
+            ArrayResize(m_void_time, m_void_count);
+            m_void_high[m_void_count - 1] = curr_low;
+            m_void_low[m_void_count - 1] = prev_high;
+            m_void_time[m_void_count - 1] = iTime(_Symbol, PERIOD_CURRENT, i);
+           }
+        }
+
+      //--- Void: gap entre le high actuel et le low précédent (bearish void)
+      if(curr_high < prev_low)
+        {
+         double gap = prev_low - curr_high;
+         if(gap >= atr * 0.3)
+           {
+            m_void_count++;
+            ArrayResize(m_void_high, m_void_count);
+            ArrayResize(m_void_low, m_void_count);
+            ArrayResize(m_void_time, m_void_count);
+            m_void_high[m_void_count - 1] = prev_low;
+            m_void_low[m_void_count - 1] = curr_high;
+            m_void_time[m_void_count - 1] = iTime(_Symbol, PERIOD_CURRENT, i);
+           }
+        }
+     }
+
+   return (m_void_count > 0);
+  }
+
+//+------------------------------------------------------------------+
+//| Le prix est-il dans un vide de liquidité ?                       |
+//+------------------------------------------------------------------+
+bool CLiquidityEngine::IsPriceInVoid(const double price) const
+  {
+   for(int i = 0; i < m_void_count; i++)
+     {
+      if(price >= m_void_low[i] && price <= m_void_high[i])
+         return true;
+     }
+   return false;
+  }
+
+//+------------------------------------------------------------------+
+//| Score des vides de liquidité pour une direction                   |
+//| Les vides attirent le prix - bonus s'il y a un void dans le TP    |
+//| Pénalité si le SL est dans un void (le prix peut y retourner)     |
+//+------------------------------------------------------------------+
+double CLiquidityEngine::GetVoidScore(const ENUM_SIGNAL_TYPE direction) const
+  {
+   if(m_void_count == 0) return 0;
+
+   double current_price = iClose(_Symbol, PERIOD_CURRENT, 0);
+   double score = 0;
+
+   for(int i = 0; i < m_void_count; i++)
+     {
+      double void_mid = (m_void_high[i] + m_void_low[i]) / 2.0;
+      double distance = MathAbs(current_price - void_mid) / _Point;
+
+      //--- Void à portée (dans les 200 pips)
+      if(distance < 200)
+        {
+         //--- Bonus si le void est dans la direction du signal
+         if(direction == SIGNAL_BUY && void_mid > current_price)
+            score += 10.0;
+         else if(direction == SIGNAL_SELL && void_mid < current_price)
+            score += 10.0;
+        }
+     }
+
+   return MathMin(score, 30.0);  // Max 30 pts de bonus
+  }
+
+//+------------------------------------------------------------------+
+//| Mise à jour principale v4                                       |
 //+------------------------------------------------------------------+
 bool CLiquidityEngine::Update()
   {
    if(!m_initialized)
       return false;
+
+   //--- v4: Mettre à jour l'ATR pour tolérance dynamique
+   double atr_buffer[];
+   ArraySetAsSeries(atr_buffer, true);
+   if(CopyBuffer(m_atr_handle, 0, 0, 1, atr_buffer) > 0)
+      m_current_atr = atr_buffer[0];
 
    double current_price = iClose(_Symbol, PERIOD_CURRENT, 0);
 
@@ -448,6 +623,9 @@ bool CLiquidityEngine::Update()
    DetectEqualLows();
    DetectDoubleTop();
    DetectDoubleBottom();
+
+   //--- v4: Détecter les vides de liquidité
+   DetectLiquidityVoids();
 
    //--- Nettoyer
    CleanupOldZones();
