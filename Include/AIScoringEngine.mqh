@@ -100,6 +100,9 @@ private:
    double            m_adx_di_plus;
    double            m_adx_di_minus;
 
+   //--- BB handle pour filtre range (FIX v4.2: persistant, pas recree chaque tick)
+   int               m_bb_handle;
+
    //--- Methodes privees v4
    double            CalculateSMCScoreNoDoubleCount(ENUM_SIGNAL_TYPE direction) const;
    double            CalculateVolumeScoreWithPenalty(ENUM_SIGNAL_TYPE direction) const;
@@ -166,7 +169,8 @@ CAIScoringEngine::CAIScoringEngine() :
    m_adx_handle(INVALID_HANDLE),
    m_adx_value(0),
    m_adx_di_plus(0),
-   m_adx_di_minus(0)
+   m_adx_di_minus(0),
+   m_bb_handle(INVALID_HANDLE)
   {
    ZeroMemory(m_last_score);
    ZeroMemory(m_last_sre_signal);
@@ -217,6 +221,13 @@ bool CAIScoringEngine::Initialize(CStrategicReversalEngine *sre, CSmartMoneyEngi
    else
       Print("A2Sniper AI: ADX initialise - filtre range actif");
 
+   //--- FIX v4.2: BB handle persistant (pas recree chaque tick dans CalculateRangePenalty)
+   m_bb_handle = iBands(_Symbol, PERIOD_CURRENT, 20, 0, 2.0, PRICE_CLOSE);
+   if(m_bb_handle == INVALID_HANDLE)
+      Print("A2Sniper AI: BB non disponible - filtre range BB desactive");
+   else
+      Print("A2Sniper AI: BB initialise - filtre range BB actif");
+
    m_initialized = true;
    Print("A2Sniper AI: AI Scoring Engine v4.0 initialise (seuil: ", m_min_score_threshold,
          "%, Volume=12%, Regime=5%, NoDoubleCount)");
@@ -235,6 +246,12 @@ void CAIScoringEngine::Deinitialize()
      {
       IndicatorRelease(m_adx_handle);
       m_adx_handle = INVALID_HANDLE;
+     }
+
+   if(m_bb_handle != INVALID_HANDLE)
+     {
+      IndicatorRelease(m_bb_handle);
+      m_bb_handle = INVALID_HANDLE;
      }
 
    m_initialized = false;
@@ -460,18 +477,17 @@ double CAIScoringEngine::CalculateRangePenalty() const
         penalty -= 3.0;
      }
 
-   //--- 3. Bollinger Band width check (FIX v4.2)
+   //--- 3. Bollinger Band width check (FIX v4.2: utiliser handle persistant)
    //--- Narrow BB = ranging market
-   int bb_handle = iBands(_Symbol, PERIOD_CURRENT, 20, 0, 2.0, PRICE_CLOSE);
-   if(bb_handle != INVALID_HANDLE)
+   if(m_bb_handle != INVALID_HANDLE)
      {
       double bb_upper[], bb_lower[], bb_middle[];
       ArraySetAsSeries(bb_upper, true);
       ArraySetAsSeries(bb_lower, true);
       ArraySetAsSeries(bb_middle, true);
-      if(CopyBuffer(bb_handle, 1, 0, 1, bb_upper) > 0 &&
-         CopyBuffer(bb_handle, 2, 0, 1, bb_lower) > 0 &&
-         CopyBuffer(bb_handle, 0, 0, 1, bb_middle) > 0)
+      if(CopyBuffer(m_bb_handle, 1, 0, 1, bb_upper) > 0 &&
+         CopyBuffer(m_bb_handle, 2, 0, 1, bb_lower) > 0 &&
+         CopyBuffer(m_bb_handle, 0, 0, 1, bb_middle) > 0)
         {
          double bb_width = (bb_upper[0] - bb_lower[0]) / bb_middle[0];
          if(bb_width < 0.005)       // Very narrow bands = strong range
@@ -481,7 +497,6 @@ double CAIScoringEngine::CalculateRangePenalty() const
          else if(bb_width < 0.015)
            penalty -= 2.0;
         }
-      IndicatorRelease(bb_handle);
      }
 
    //--- Multiple confirmation = extra penalty
