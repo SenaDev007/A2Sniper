@@ -970,9 +970,9 @@ SSniperSignal CTradeSniperEngine::HuntSniperSignal(ENUM_SIGNAL_TYPE direction)
    signal.tp2 = CalculateSniperTP(direction, signal.entry_price, signal.stop_loss, TP2_R_MULT);
    signal.tp3 = CalculateSniperTP(direction, signal.entry_price, signal.stop_loss, TP3_R_MULT);
 
-   //--- 10. Ratio R:R
+   //--- 10. Ratio R:R (v6: utilise TP3 pour le calcul car TP2=1R donnerait toujours R:R=1.0)
    double risk = MathAbs(signal.entry_price - signal.stop_loss);
-   double reward = MathAbs(signal.tp2 - signal.entry_price);
+   double reward = MathAbs(signal.tp3 - signal.entry_price);  // v6: TP3=1.5R au lieu de TP2=1R
    signal.risk_reward = (risk > 0) ? reward / risk : 0;
 
    //--- v5: Si R:R < 1.0, recalculer les TP pour assurer au minimum 1.5R

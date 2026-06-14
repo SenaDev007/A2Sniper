@@ -62,7 +62,7 @@ input bool            UseAdaptiveRisk = true;           // Utiliser le Risk Engi
 //--- Trade Sniper
 input group           "=== Trade Sniper Settings ==="
 input int             MinSniperScore = 70;              // Score sniper minimum (70=Bronze, 80=Silver, 90=Gold)
-input double          MinRiskReward = 1.2;              // R:R minimum (1.2 - vise plus de wins)
+input double          MinRiskReward = 1.0;              // R:R minimum (1.0 - v6: TP3=1.5R donc R:R effectif bon)
 input bool            RequireKillzone = false;          // Exiger zone Kill Zone (desactive - score gre)
 input bool            RequireStructure = false;          // Exiger structure alignee (desactive - score gre)
 input bool            RequireInstitutional = false;      // Exiger empreinte institutionnelle (desactive - score gre)
