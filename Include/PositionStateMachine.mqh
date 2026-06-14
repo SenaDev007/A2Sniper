@@ -8,6 +8,9 @@
 #ifndef A2SNIPER_POSITION_STATE_MACHINE_MQH
 #define A2SNIPER_POSITION_STATE_MACHINE_MQH
 
+//--- v5.2: Limite de tentatives de modification avant abandon
+#define MAX_FAILED_MODIFIES  3    // Apres 3 echecs consecutifs, on arrete d'essayer
+
 #include <A2Sniper\CommonTypes.mqh>
 #include <A2Sniper\TradeExecutor.mqh>
 #include <A2Sniper\VolatilityEngine.mqh>
@@ -107,6 +110,7 @@ struct SManagedPosition
    //--- Etat
    bool                 is_valid;                  // Position active
    bool                 news_protection_active;    // Protection news active
+   int                  failed_modifies;           // Nombre de modifications echouees consecutives
 
    //--- Historique des actions
    int                  action_count;              // Nombre d'actions
@@ -472,6 +476,10 @@ bool CPositionStateMachine::ExecuteAction(SManagedPosition &pos, ENUM_MANAGEMENT
   {
    if(m_executor == NULL) return false;
 
+   //--- v5.2: Si trop de modifications echouees, on arrete d'essayer
+   if(pos.failed_modifies >= MAX_FAILED_MODIFIES && action != ACTION_FORCE_CLOSE)
+      return false;
+
    if(!PositionSelectByTicket(pos.ticket))
      {
       pos.is_valid = false;
@@ -499,6 +507,12 @@ bool CPositionStateMachine::ExecuteAction(SManagedPosition &pos, ENUM_MANAGEMENT
          else
             be_price = NormalizeDouble(pos.entry_price - offset, digits);
 
+         //--- v5.2: Valider que le SL est du bon cote du prix actuel
+         double current_bid = SymbolInfoDouble(_Symbol, SYMBOL_BID);
+         double current_ask = SymbolInfoDouble(_Symbol, SYMBOL_ASK);
+         if(pos.direction == SIGNAL_BUY && be_price >= current_bid) { pos.failed_modifies++; break; }
+         if(pos.direction == SIGNAL_SELL && be_price <= current_ask) { pos.failed_modifies++; break; }
+
          bool should_modify = false;
          if(pos.direction == SIGNAL_BUY && be_price > current_sl) should_modify = true;
          if(pos.direction == SIGNAL_SELL && (be_price < current_sl || current_sl == 0)) should_modify = true;
@@ -510,9 +524,14 @@ bool CPositionStateMachine::ExecuteAction(SManagedPosition &pos, ENUM_MANAGEMENT
                pos.be_activated = true;
                pos.current_sl = be_price;
                pos.last_trail_sl = be_price;
+               pos.failed_modifies = 0;   // v5.2: Reset on success
                m_be_count++;
                TransitionToState(pos, STATE_MANAGING);
                Print("A2Sniper PSM: BE active - Ticket=", pos.ticket, " SL=", be_price);
+              }
+            else
+              {
+               pos.failed_modifies++;   // v5.2: Track failures
               }
            }
          break;
@@ -535,6 +554,12 @@ bool CPositionStateMachine::ExecuteAction(SManagedPosition &pos, ENUM_MANAGEMENT
          else
             new_sl = NormalizeDouble(current_price + trail_distance, digits);
 
+         //--- v5.2: Valider que le SL est du bon cote du prix actuel
+         double current_bid = SymbolInfoDouble(_Symbol, SYMBOL_BID);
+         double current_ask = SymbolInfoDouble(_Symbol, SYMBOL_ASK);
+         if(pos.direction == SIGNAL_BUY && new_sl >= current_bid) { pos.failed_modifies++; break; }
+         if(pos.direction == SIGNAL_SELL && new_sl <= current_ask) { pos.failed_modifies++; break; }
+
          //--- Le trailing ne doit JAMAIS reculer
          double step = TRAILING_STEP_PIPS * _Point;
          bool should_modify = false;
@@ -553,9 +578,14 @@ bool CPositionStateMachine::ExecuteAction(SManagedPosition &pos, ENUM_MANAGEMENT
                pos.trailing_active = true;
                pos.current_sl = new_sl;
                pos.last_trail_sl = new_sl;
+               pos.failed_modifies = 0;   // v5.2: Reset on success
                m_trailing_count++;
                if(pos.state < STATE_MANAGING)
                   TransitionToState(pos, STATE_MANAGING);
+              }
+            else
+              {
+               pos.failed_modifies++;   // v5.2: Track failures
               }
            }
          break;
@@ -618,6 +648,12 @@ bool CPositionStateMachine::ExecuteAction(SManagedPosition &pos, ENUM_MANAGEMENT
          double structural_sl = CalculateStructuralSL(pos.direction);
          if(structural_sl > 0)
            {
+            //--- v5.2: Valider que le SL est du bon cote du prix
+            double current_bid = SymbolInfoDouble(_Symbol, SYMBOL_BID);
+            double current_ask = SymbolInfoDouble(_Symbol, SYMBOL_ASK);
+            if(pos.direction == SIGNAL_BUY && structural_sl >= current_bid) { pos.failed_modifies++; break; }
+            if(pos.direction == SIGNAL_SELL && structural_sl <= current_ask) { pos.failed_modifies++; break; }
+
             bool should_modify = false;
             if(pos.direction == SIGNAL_BUY && structural_sl > current_sl + _Point) should_modify = true;
             if(pos.direction == SIGNAL_SELL && structural_sl < current_sl - _Point && structural_sl > 0) should_modify = true;
@@ -628,9 +664,14 @@ bool CPositionStateMachine::ExecuteAction(SManagedPosition &pos, ENUM_MANAGEMENT
                  {
                   pos.current_sl = structural_sl;
                   pos.last_trail_sl = structural_sl;
+                  pos.failed_modifies = 0;   // v5.2: Reset on success
                   m_structural_sl_count++;
                   Print("A2Sniper PSM: SL ajuste sur structure - Ticket=", pos.ticket,
                         " SL=", structural_sl);
+                 }
+               else
+                 {
+                  pos.failed_modifies++;   // v5.2: Track failures
                  }
               }
            }
@@ -830,6 +871,7 @@ bool CPositionStateMachine::RegisterPosition(ulong ticket, ENUM_SIGNAL_TYPE dire
 
    pos.is_valid = true;
    pos.news_protection_active = false;
+   pos.failed_modifies = 0;
    pos.action_count = 0;
    pos.last_action = ACTION_NONE;
 
