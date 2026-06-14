@@ -350,19 +350,19 @@ struct SStatistics
 #define EXTREME_VOL_MULT        3.5
 
 //--- Break Even dynamique (base ATR)
-#define BE_ACTIVATION_R         1.0      // Activer BE a 1R
+#define BE_ACTIVATION_R         0.5      // v6: Activer BE a 0.5R (plus rapide)
 #define BE_ATR_OFFSET_MULT      0.2      // FIX: Offset BE = 0.2 * ATR (au lieu de 2 pips fixe)
 #define BE_MIN_OFFSET_PIPS      1.0      // Offset minimum en pips
 
 //--- Partial Close (pourcentages du VOLUME RESTANT, pas du lot original)
-#define PARTIAL_TP1_PCT         50.0     // Fermer 50% du volume restant a TP1
-#define PARTIAL_TP2_PCT         60.0     // Fermer 60% du volume restant a TP2
+#define PARTIAL_TP1_PCT         60.0     // v6: Fermer 60% a TP1 (plus agressif = lock profit)
+#define PARTIAL_TP2_PCT         50.0     // v6: Fermer 50% du reste a TP2
 #define PARTIAL_TP3_PCT         100.0    // Fermer 100% du volume restant a TP3 (ou trailing)
 
 //--- TP R-multiples
-#define TP1_R_MULT              1.0
-#define TP2_R_MULT              2.0
-#define TP3_R_MULT              3.0
+#define TP1_R_MULT              0.5      // v6: TP1 a 0.5R (serre pour plus de wins)
+#define TP2_R_MULT              1.0      // v6: TP2 a 1R
+#define TP3_R_MULT              1.5      // v6: TP3 a 1.5R
 
 //--- Trailing Stop
 #define TRAILING_ATR_MULT       1.5      // Trailing ATR multiplicateur

@@ -5,10 +5,10 @@
 //| Full integration: Sniper + State Machine + Adaptive Risk         |
 //+------------------------------------------------------------------+
 #property copyright "Copyright 2024, YEHI OR Tech Solutions"
-#property version   "5.20"
-#property description "A2Sniper Trading v5.2 - Pipeline Score-Based System"
-#property description "v5.2: AI negative no longer blocks - composite decides"
-#property description "Penalties reduced, threshold lowered 60->45"
+#property version   "6.00"
+#property description "A2Sniper Trading v6 - Qualite avant Quantite"
+#property description "v6: Min 2 confirmations fortes, TP1 serre 0.5R, BE rapide 0.5R"
+#property description "Seuil composite 55, R:R minimum 1.2, confluence prime"
 #property description "SMC/ICT + Strategic Reversal + Smart Money"
 #property description "80%+ Win Rate Target"
 
@@ -62,7 +62,7 @@ input bool            UseAdaptiveRisk = true;           // Utiliser le Risk Engi
 //--- Trade Sniper
 input group           "=== Trade Sniper Settings ==="
 input int             MinSniperScore = 70;              // Score sniper minimum (70=Bronze, 80=Silver, 90=Gold)
-input double          MinRiskReward = 1.5;              // R:R minimum (1.5 au lieu de 2.0)
+input double          MinRiskReward = 1.2;              // R:R minimum (1.2 - vise plus de wins)
 input bool            RequireKillzone = false;          // Exiger zone Kill Zone (desactive - score gre)
 input bool            RequireStructure = false;          // Exiger structure alignee (desactive - score gre)
 input bool            RequireInstitutional = false;      // Exiger empreinte institutionnelle (desactive - score gre)
@@ -150,11 +150,9 @@ int               g_last_sniper_score = 0;
 int OnInit()
   {
    Print("========================================");
-   Print("  A2Sniper Trading v5.0 - Score-Based Pipeline");
-   Print("  v5: Scoring approach - no more sequential gates");
-   Print("  Institutional footprint = score modifier, not gate");
-   Print("  SME/Session/KillZone = bonus, not requirement");
-   Print("  Sniper>=70, AI>=60, SRE>=65, R:R>=1.5");
+   Print("  A2Sniper Trading v6.0 - Qualite avant Quantite");
+   Print("  v6: Min 2 confirmations, TP1=0.5R, BE=0.5R");
+   Print("  Composite>=55, R:R>=1.2, Confluence prime");
    Print("========================================");
 
    //--- 1. Initialiser le Risk Manager
@@ -438,13 +436,16 @@ bool CheckMultiTimeframeAlignment(ENUM_SIGNAL_TYPE direction)
 //| Ancienne approche (v4): 15+ portes sequentielles ET                |
 //| = probabilite combinee quasi nulle = 0 trades                     |
 //|                                                                    |
-//| Nouvelle approche (v5): Score composite                           |
-//| = score_sniper*0.30 + score_ai*0.35 + score_sre*0.20             |
-//|   + bonus_sme*5 + bonus_session*5 + bonus_inst*5                  |
-//|   - penalty_range - penalty_no_zone                               |
-//| Si score_composite >= MIN_COMPOSITE_SCORE (60) => trade           |
+//| Option A: Qualite avant Quantite (v6)                            |
+//| = score_sniper*0.35 + score_ai*0.30 + score_sre*0.15             |
+//|   + bonus confirmations (plus genereux)                            |
+//|   - penalties (plus severes pour signaux faibles)                  |
+//| + Exiger MIN 2 confirmations fortes parmi OB/FVG/BOS/KillZone    |
+//| + TP1 serre a 0.5R (prendre profit vite = plus de wins)          |
+//| Si score_composite >= MIN_COMPOSITE_SCORE (55) => trade           |
 //+------------------------------------------------------------------+
-#define MIN_COMPOSITE_SCORE  45.0   // Score composite minimum (abaissé de 60 -> 45 pour plus de trades)
+#define MIN_COMPOSITE_SCORE  55.0   // v6: Remonte a 55 pour qualite
+#define MIN_CONFIRMATIONS    2      // v6: Minimum 2 confirmations fortes requises
 
 void TryExecuteSniperSignal(ENUM_SIGNAL_TYPE direction)
   {
@@ -452,7 +453,7 @@ void TryExecuteSniperSignal(ENUM_SIGNAL_TYPE direction)
    double spread = SymbolInfoInteger(_Symbol, SYMBOL_SPREAD) * _Point;
    if(spread > MAX_SPREAD_POINTS * _Point)
      {
-      Print("A2Sniper v5: Spread trop eleve - signal ignore");
+      Print("A2Sniper v6: Spread trop eleve - signal ignore");
       return;
      }
 
@@ -465,7 +466,7 @@ void TryExecuteSniperSignal(ENUM_SIGNAL_TYPE direction)
    //--- v5: Si le sniper n'a meme pas calcule de score, on abandonne
    if(sniper.sniper_score <= 0)
      {
-      Print("A2Sniper v5: Score sniper=0 - aucun signal detecte");
+      Print("A2Sniper v6: Score sniper=0 - aucun signal detecte");
       return;
      }
 
@@ -477,76 +478,101 @@ void TryExecuteSniperSignal(ENUM_SIGNAL_TYPE direction)
    //--- 4. PHASE SRE: Score Strategic Reversal
    SStrategicReversalSignal sre_signal = g_ai_scoring.GetLastSRESignal();
 
-   //--- 5. BONUS/MALUS: Verifier les confirmations (bonus, pas portes)
+   //--- 5. v6: VERIFICATION DES CONFIRMATIONS FORTES
    bool has_sme = g_smart_money.HasSmartMoneyConfirmation(direction);
    bool is_optimal_session = g_session_engine.IsOptimalTradingTime();
    bool is_killzone = g_session_engine.IsKillZone();
    bool has_institutional = (sniper.zone_type != SNIPER_ZONE_NONE);
    bool has_good_timing = (sniper.timing != SNIPER_TIMING_NONE);
+   bool has_bos = g_market_structure.HasBOS(PERIOD_CURRENT);
+   bool has_choch = g_market_structure.HasCHOCH(PERIOD_CURRENT);
+   bool has_ob = (sniper.zone_type == SNIPER_ZONE_OB || sniper.zone_type == SNIPER_ZONE_CONFLUENCE);
+   bool has_fvg = (sniper.zone_type == SNIPER_ZONE_FVG || sniper.zone_type == SNIPER_ZONE_CONFLUENCE);
 
-   //--- 6. CALCULER LE SCORE COMPOSITE v5
-   //--- Pondération: Sniper 30%, AI 35%, SRE 20%, Bonus 15%
+   //--- v6: Compter les confirmations fortes (OB, FVG, BOS/CHOCH, KillZone)
+   int strong_confirmations = 0;
+   if(has_ob)               strong_confirmations++;     // Order Block detecte
+   if(has_fvg)              strong_confirmations++;     // Fair Value Gap detecte
+   if(has_bos || has_choch) strong_confirmations++;     // Structure break (BOS ou CHOCH)
+   if(is_killzone)          strong_confirmations++;     // Kill Zone active
+
+   //--- v6: EXIGER MINIMUM 2 CONFIRMATIONS FORTES
+   if(strong_confirmations < MIN_CONFIRMATIONS)
+     {
+      Print("A2Sniper v6: Confirmations insuffisantes (", strong_confirmations, "/", MIN_CONFIRMATIONS,
+            ") OB=", has_ob ? "Y" : "N", " FVG=", has_fvg ? "Y" : "N",
+            " BOS=", has_bos ? "Y" : "N", " CHOCH=", has_choch ? "Y" : "N",
+            " KZ=", is_killzone ? "Y" : "N");
+      return;
+     }
+
+   //--- 6. CALCULER LE SCORE COMPOSITE v6
+   //--- Pondération v6: Sniper 35%, AI 30%, SRE 15%, Confirmations 20%
    double composite = 0.0;
 
-   //--- Score sniper normalise (0-100 -> 0-30 pts)
-   composite += (sniper.sniper_score / 100.0) * 30.0;
+   //--- Score sniper normalise (0-100 -> 0-35 pts) - principal, plus pese
+   composite += (sniper.sniper_score / 100.0) * 35.0;
 
-   //--- Score AI normalise (peut etre negatif -> clamp a 0-35 pts)
+   //--- Score AI normalise (0-100 -> 0-30 pts)
    double ai_normalized = MathMax(0.0, MathMin(100.0, ai_score.total_score));
-   composite += (ai_normalized / 100.0) * 35.0;
+   composite += (ai_normalized / 100.0) * 30.0;
 
-   //--- Score SRE normalise (0-100 -> 0-20 pts)
+   //--- Score SRE normalise (0-100 -> 0-15 pts) - moins pese
    double sre_normalized = MathMax(0.0, MathMin(100.0, (double)sre_signal.total_score));
-   composite += (sre_normalized / 100.0) * 20.0;
+   composite += (sre_normalized / 100.0) * 15.0;
 
-   //--- Bonus de confirmation (+5 pts chacun)
-   if(has_sme)              composite += 5.0;    // SME confirme
-   if(is_optimal_session)   composite += 5.0;    // Session optimale
-   if(has_institutional)    composite += 5.0;    // Zone institutionnelle (OB/FVG/Liq)
-   if(has_good_timing)      composite += 3.0;    // Bon timing (KillZone/Overlap)
-   if(is_killzone)          composite += 2.0;    // Kill Zone active
+   //--- v6: Bonus de confirmations (plus genereux pour rewader la qualite)
+   if(has_ob)               composite += 5.0;    // Order Block
+   if(has_fvg)              composite += 5.0;    // Fair Value Gap
+   if(has_bos || has_choch) composite += 5.0;    // Structure break
+   if(is_killzone)          composite += 3.0;    // Kill Zone
+   if(has_sme)              composite += 3.0;    // Smart Money
+   if(is_optimal_session)   composite += 2.0;    // Session optimale
+   if(has_good_timing)      composite += 2.0;    // Bon timing
 
-   //--- Penalites v5.2 (reduites - trop de rejets sinon)
-   if(!has_institutional)   composite -= 5.0;    // Pas de zone institutionnelle (etait -10)
-   if(!has_good_timing)     composite -= 2.0;    // Pas de bon timing (etait -3)
-   if(!has_sme)             composite -= 3.0;    // Pas de confirmation Smart Money (etait -5)
+   //--- v6: Penalites (plus severes pour signaux faibles)
+   if(!has_institutional)   composite -= 8.0;    // Pas de zone institutionnelle (grave)
+   if(!has_sme)             composite -= 5.0;    // Pas de confirmation Smart Money
+   if(!has_good_timing)     composite -= 3.0;    // Pas de bon timing
 
-   //--- Range penalty: deja dans le score AI, pas besoin de double penalite
-   //--- (supprime - etait -5 quand range_penalty < -15)
+   //--- v6: Bonus pour confluence multiple (2+ confirmations = deja verifie)
+   if(strong_confirmations >= 3) composite += 5.0;    // Triple confluence
+   if(strong_confirmations >= 4) composite += 5.0;    // Confluence maximale
 
-   //--- Session asiatique sans paire asiatique = penalite moderee
+   //--- Session asiatique sans paire asiatique = penalite forte
    if(g_session_engine.IsAsianSession())
      {
       string sym = _Symbol;
       if(StringFind(sym, "JPY") < 0 && StringFind(sym, "AUD") < 0 && StringFind(sym, "NZD") < 0)
-         composite -= 5.0;   // Asie hors paires asiatiques (etait -10)
+         composite -= 8.0;   // Asie hors paires asiatiques
      }
 
-   //--- v5.2: AI negatif n'est plus une porte bloquante - le composite decide
-   //--- Si AI negatif, ai_normalized=0 (pas de contribution), + penalite -3
+   //--- v6: AI negatif = penalite plus forte (on veut de la qualite)
    if(ai_score.total_score <= 0)
      {
-      composite -= 3.0;   // Penalite legere pour AI negatif (au lieu de bloquer)
-      Print("A2Sniper v5: Score AI negatif (", DoubleToString(ai_score.total_score, 1), ") - penalite composite -3");
+      composite -= 5.0;   // Penalite pour AI negatif
+      Print("A2Sniper v6: Score AI negatif (", DoubleToString(ai_score.total_score, 1), ") - penalite -5");
      }
 
    //--- 7. DECISION: Le score composite decide
-   Print("A2Sniper v5: Composite=", DoubleToString(composite, 1), "/", MIN_COMPOSITE_SCORE,
+   Print("A2Sniper v6: Composite=", DoubleToString(composite, 1), "/", MIN_COMPOSITE_SCORE,
          " | Sniper=", sniper.sniper_score, " AI=", DoubleToString(ai_score.total_score, 1),
          " SRE=", sre_signal.total_score,
-         " | SME=", has_sme ? "Y" : "N", " Session=", is_optimal_session ? "Y" : "N",
-         " Inst=", has_institutional ? "Y" : "N", " Timing=", has_good_timing ? "Y" : "N");
+         " | Conf=", strong_confirmations, "/", MIN_CONFIRMATIONS,
+         " OB=", has_ob ? "Y" : "N", " FVG=", has_fvg ? "Y" : "N",
+         " BOS=", has_bos ? "Y" : "N", " KZ=", is_killzone ? "Y" : "N",
+         " SME=", has_sme ? "Y" : "N", " Sess=", is_optimal_session ? "Y" : "N");
 
    if(composite < MIN_COMPOSITE_SCORE)
      {
-      Print("A2Sniper v5: Score composite insuffisant (", DoubleToString(composite, 1), " < ", MIN_COMPOSITE_SCORE, ")");
+      Print("A2Sniper v6: Score composite insuffisant (", DoubleToString(composite, 1), " < ", MIN_COMPOSITE_SCORE, ")");
       return;
      }
 
    //--- 8. Verifier R:R minimum (avec tolerance flottante)
    if(sniper.risk_reward < MinRiskReward - 0.01)
      {
-      Print("A2Sniper v5: R:R insuffisant (", DoubleToString(sniper.risk_reward, 1), " < ", MinRiskReward, ")");
+      Print("A2Sniper v6: R:R insuffisant (", DoubleToString(sniper.risk_reward, 1), " < ", MinRiskReward, ")");
       return;
      }
 
@@ -560,20 +586,20 @@ void TryExecuteSniperSignal(ENUM_SIGNAL_TYPE direction)
 
       if(RequireBookConfirmation && !book_val.liquidity_ok)
         {
-         Print("A2Sniper v5: OrderBook REJET - Liquidite insuffisante (", book_val.rejection_reason, ")");
+         Print("A2Sniper v6: OrderBook REJET - Liquidite insuffisante (", book_val.rejection_reason, ")");
          return;
         }
 
       if(RequireBookConfirmation && book_val.confidence_score < 30.0)
         {
-         Print("A2Sniper v5: OrderBook REJET - Confiance trop faible (", DoubleToString(book_val.confidence_score, 1), "/100)");
+         Print("A2Sniper v6: OrderBook REJET - Confiance trop faible (", DoubleToString(book_val.confidence_score, 1), "/100)");
          return;
         }
 
       if(UseBookSLAdjust && book_val.wall_sl_adjust > 0 && book_val.wall_sl_adjust != sniper.stop_loss)
         {
          book_sl = book_val.wall_sl_adjust;
-         Print("A2Sniper v5: OrderBook SL ajuste - SL original=", sniper.stop_loss,
+         Print("A2Sniper v6: OrderBook SL ajuste - SL original=", sniper.stop_loss,
                " . SL carnet=", book_sl);
         }
      }
@@ -587,7 +613,7 @@ void TryExecuteSniperSignal(ENUM_SIGNAL_TYPE direction)
 
    if(!can_trade)
      {
-      Print("A2Sniper v5: Risk Manager bloque le trade");
+      Print("A2Sniper v6: Risk Manager bloque le trade");
       return;
      }
 
@@ -620,7 +646,7 @@ void TryExecuteSniperSignal(ENUM_SIGNAL_TYPE direction)
    double min_lot = SymbolInfoDouble(_Symbol, SYMBOL_VOLUME_MIN);
    if(lot < min_lot && lot > 0)
      {
-      Print("A2Sniper v5: Lot calcule (", lot, ") < min_lot (", min_lot, ") - ajustement au minimum");
+      Print("A2Sniper v6: Lot calcule (", lot, ") < min_lot (", min_lot, ") - ajustement au minimum");
       lot = min_lot;
      }
 
@@ -628,7 +654,7 @@ void TryExecuteSniperSignal(ENUM_SIGNAL_TYPE direction)
    if(lot <= 0)
      {
       lot = min_lot;
-      Print("A2Sniper v5: Lot=0 detecte - utilisation du lot minimum (", lot, ")");
+      Print("A2Sniper v6: Lot=0 detecte - utilisation du lot minimum (", lot, ")");
      }
 
    //--- 14. Verifier la marge
@@ -640,13 +666,13 @@ void TryExecuteSniperSignal(ENUM_SIGNAL_TYPE direction)
 
    if(!has_margin)
      {
-      Print("A2Sniper v5: Marge insuffisante pour lot=", lot);
+      Print("A2Sniper v6: Marge insuffisante pour lot=", lot);
       return;
      }
 
    //--- 15. EXECUTION
    Print("========================================");
-   Print("A2Sniper Trading v5: SIGNAL ", (direction == SIGNAL_BUY) ? "ACHAT" : "VENTE");
+   Print("A2Sniper Trading v6: SIGNAL ", (direction == SIGNAL_BUY) ? "ACHAT" : "VENTE");
    Print("  Composite Score: ", DoubleToString(composite, 1), "/", MIN_COMPOSITE_SCORE);
    Print("  Sniper Score: ", sniper.sniper_score, "/100 (", GetSniperQualityName(sniper.quality), ")");
    Print("  AI Score: ", DoubleToString(ai_score.total_score, 1), "/100 (Conf: ", ai_score.confirming_engines, "/9)");
@@ -685,7 +711,7 @@ void TryExecuteSniperSignal(ENUM_SIGNAL_TYPE direction)
          g_dashboard.DrawTradeLevels(sniper.entry_price, book_sl,
                                       sniper.tp1, sniper.tp2, sniper.tp3, direction);
 
-      Print("A2Sniper v5: Trade execute - Ticket=", ticket, " Lot=", lot,
+      Print("A2Sniper v6: Trade execute - Ticket=", ticket, " Lot=", lot,
             " Composite=", DoubleToString(composite, 1),
             " Sniper=", sniper.sniper_score, " AI=", DoubleToString(ai_score.total_score, 1));
 
@@ -694,12 +720,12 @@ void TryExecuteSniperSignal(ENUM_SIGNAL_TYPE direction)
                                    composite, sniper.sniper_score, ai_score.total_score,
                                    sre_signal.total_score, sniper.risk_reward);
       SendNotification(notif);
-      Alert("A2Sniper Trading v5: ", (direction == SIGNAL_BUY) ? "ACHAT" : "VENTE",
+      Alert("A2Sniper Trading v6: ", (direction == SIGNAL_BUY) ? "ACHAT" : "VENTE",
             " Composite=", DoubleToString(composite, 0));
      }
    else
      {
-      Print("A2Sniper v5: ECHEC execution - ticket=", ticket, " lot=", lot);
+      Print("A2Sniper v6: ECHEC execution - ticket=", ticket, " lot=", lot);
      }
   }
 
