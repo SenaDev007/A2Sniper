@@ -301,9 +301,14 @@ int CTradeExecutor::ExecuteBuy(double entry_price, double sl, double tp1, double
    if(!m_initialized)
       return -1;
 
+   //--- v6.3: Smart Partial Close - si volume=min_lot, envoyer TP2 (1R) au broker au lieu de TP1 (0.5R)
+   //--- Car on ne peut pas splitter, donc TP1 n'est pas notre objectif
+   double min_lot = SymbolInfoDouble(_Symbol, SYMBOL_VOLUME_MIN);
+   bool smart_partial = (lot < min_lot * SMART_PARTIAL_MIN_LOT_FACTOR);
+
    double price = entry_price;
    double sl_copy = sl;
-   double tp_copy = tp1;
+   double tp_copy = smart_partial ? tp2 : tp1;  // v6.3: TP2 si min_lot, TP1 sinon
    if(!ValidateOrder(SIGNAL_BUY, price, sl_copy, tp_copy))
      {
       m_total_errors++;
@@ -341,7 +346,8 @@ int CTradeExecutor::ExecuteBuy(double entry_price, double sl, double tp1, double
      {
       Print("A2Sniper TE: BUY execute - Ticket=", ticket, " Lot=", lot,
             " Price=", price, " SL=", sl_copy, " TP=", tp_copy,
-            " TP2=", tp2, " TP3=", tp3);
+            " TP2=", tp2, " TP3=", tp3,
+            smart_partial ? " [SMART: TP=1R]" : "");
      }
 
    return ticket;
@@ -356,9 +362,13 @@ int CTradeExecutor::ExecuteSell(double entry_price, double sl, double tp1, doubl
    if(!m_initialized)
       return -1;
 
+   //--- v6.3: Smart Partial Close - si volume=min_lot, envoyer TP2 (1R) au broker au lieu de TP1 (0.5R)
+   double min_lot = SymbolInfoDouble(_Symbol, SYMBOL_VOLUME_MIN);
+   bool smart_partial = (lot < min_lot * SMART_PARTIAL_MIN_LOT_FACTOR);
+
    double price = entry_price;
    double sl_copy = sl;
-   double tp_copy = tp1;
+   double tp_copy = smart_partial ? tp2 : tp1;  // v6.3: TP2 si min_lot, TP1 sinon
    if(!ValidateOrder(SIGNAL_SELL, price, sl_copy, tp_copy))
      {
       m_total_errors++;
@@ -385,7 +395,8 @@ int CTradeExecutor::ExecuteSell(double entry_price, double sl, double tp1, doubl
      {
       Print("A2Sniper TE: SELL execute - Ticket=", ticket, " Lot=", lot,
             " Price=", price, " SL=", sl_copy, " TP=", tp_copy,
-            " TP2=", tp2, " TP3=", tp3);
+            " TP2=", tp2, " TP3=", tp3,
+            smart_partial ? " [SMART: TP=1R]" : "");
      }
 
    return ticket;

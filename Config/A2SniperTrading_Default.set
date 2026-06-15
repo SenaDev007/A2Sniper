@@ -1,5 +1,5 @@
-; A2Sniper Trading v6.1 - Configuration par defaut
-; Option A: Qualite avant Quantite - 80% Win Rate Target
+; A2Sniper Trading v6.3 - Configuration par defaut
+; v6.3: Smart Partial Close - si volume=min_lot => BE@0.5R + FullClose@1R
 ; Copyright 2024, YEHI OR Tech Solutions
 
 ; === GENERAL ===

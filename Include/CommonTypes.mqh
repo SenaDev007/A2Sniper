@@ -2,6 +2,7 @@
 //| CommonTypes.mqh - Types, Enums, Structures Partages              |
 //| A2Sniper Ultimate v3.1 - Professional Trading System             |
 //| FIX: Partial close on REMAINING volume, added missing constants   |
+//| v6.3: Smart partial close - skip when volume=min_lot (can't split) |
 //| Copyright 2024, A2Sniper Development Team                        |
 //+------------------------------------------------------------------+
 #ifndef A2SNIPER_COMMON_TYPES_MQH
@@ -351,6 +352,7 @@ struct SStatistics
 
 //--- Break Even dynamique (base ATR)
 #define BE_ACTIVATION_R         0.5      // v6: Activer BE a 0.5R (plus rapide)
+//--- v6.3: Quand volume=min_lot, BE reste a 0.5R (protection), TP a 1R (objectif)
 #define BE_ATR_OFFSET_MULT      0.2      // FIX: Offset BE = 0.2 * ATR (au lieu de 2 pips fixe)
 #define BE_MIN_OFFSET_PIPS      1.0      // Offset minimum en pips
 
@@ -359,10 +361,19 @@ struct SStatistics
 #define PARTIAL_TP2_PCT         50.0     // v6: Fermer 50% du reste a TP2
 #define PARTIAL_TP3_PCT         100.0    // Fermer 100% du volume restant a TP3 (ou trailing)
 
+//--- v6.3: Smart Partial Close - quand volume = min_lot, on ne peut pas splitter
+//--- Au lieu de partial close, on utilise BE a 0.5R + close full a 1R (TP2)
+#define SMART_PARTIAL_MIN_LOT_FACTOR  2.0   // v6.3: Partial close possible si volume >= min_lot * FACTOR
+                                                  // Ex: min_lot=0.01, factor=2.0 => besoin de 0.02 pour splitter
+
 //--- TP R-multiples
 #define TP1_R_MULT              0.5      // v6: TP1 a 0.5R (serre pour plus de wins)
 #define TP2_R_MULT              1.0      // v6: TP2 a 1R
 #define TP3_R_MULT              1.5      // v6: TP3 a 1.5R
+
+//--- v6.3: TP alternatifs quand volume = min_lot (pas de partial close possible)
+//--- On vise 1R direct au lieu de 0.5R partiel -> R:R effectif 1:1 au lieu de 0.5:1
+#define SMART_TP_R_MULT         1.0      // v6.3: TP unique a 1R quand volume=min_lot (pas de split)
 
 //--- Trailing Stop
 #define TRAILING_ATR_MULT       1.5      // Trailing ATR multiplicateur

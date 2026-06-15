@@ -80,6 +80,7 @@ struct SManagedPosition
    //--- Volume
    double               original_lot;              // Lot original
    double               current_lot;               // Lot actuel
+   bool                 smart_partial_mode;        // v6.3: volume=min_lot, pas de split possible
 
    //--- Risk
    double               risk_distance;             // Distance SL en prix
@@ -433,12 +434,21 @@ ENUM_MANAGEMENT_ACTION CPositionStateMachine::DetermineAction(SManagedPosition &
      }
 
    //--- 4. Partial Close TP1
+   //--- v6.3: Si smart_partial_mode, tp1_hit est deja true -> on skip TP1 partial
    if(m_enable_partial_close && !pos.tp1_hit && current_r >= TP1_R_MULT)
       return ACTION_PARTIAL_CLOSE_TP1;
 
-   //--- 5. Partial Close TP2
-   if(m_enable_partial_close && pos.tp1_hit && !pos.tp2_hit && current_r >= TP2_R_MULT)
-      return ACTION_PARTIAL_CLOSE_TP2;
+   //--- 5. Partial Close TP2 (ou Full Close si smart_partial_mode)
+   if(pos.tp1_hit && !pos.tp2_hit && current_r >= TP2_R_MULT)
+     {
+      if(pos.smart_partial_mode)
+        {
+         //--- v6.3: Volume=min_lot, on ne peut pas splitter -> FULL CLOSE a 1R
+         return ACTION_PARTIAL_CLOSE_TP3;  // TP3 = close full position
+        }
+      if(m_enable_partial_close)
+         return ACTION_PARTIAL_CLOSE_TP2;
+     }
 
    //--- 6. Partial Close TP3 ou trailing agressif
    if(pos.tp1_hit && pos.tp2_hit && !pos.tp3_hit && current_r >= TP3_R_MULT)
@@ -634,10 +644,17 @@ bool CPositionStateMachine::ExecuteAction(SManagedPosition &pos, ENUM_MANAGEMENT
            {
             if(m_executor.ClosePartial(pos.ticket, remaining))
               {
+               //--- v6.3: Si smart_partial_mode, on ferme a 1R (TP2 devient TP final)
+               if(pos.smart_partial_mode && !pos.tp2_hit)
+                  pos.tp2_hit = true;  // Marquer TP2 comme atteint (on ferme a 1R)
                pos.tp3_hit = true;
                m_partial_close_count++;
                TransitionToState(pos, STATE_EXITING);
-               Print("A2Sniper PSM: TP3 atteint - Fermeture totale - Ticket=", pos.ticket);
+               if(pos.smart_partial_mode)
+                  Print("A2Sniper PSM: SMART CLOSE a 1R - Fermeture totale - Ticket=", pos.ticket,
+                        " (volume min, pas de split possible)");
+               else
+                  Print("A2Sniper PSM: TP3 atteint - Fermeture totale - Ticket=", pos.ticket);
               }
            }
          break;
@@ -847,6 +864,19 @@ bool CPositionStateMachine::RegisterPosition(ulong ticket, ENUM_SIGNAL_TYPE dire
 
    pos.original_lot = lot;
    pos.current_lot = lot;
+
+   //--- v6.3: Smart Partial Close - si volume trop petit pour splitter
+   double min_lot = SymbolInfoDouble(_Symbol, SYMBOL_VOLUME_MIN);
+   pos.smart_partial_mode = (lot < min_lot * SMART_PARTIAL_MIN_LOT_FACTOR);
+   if(pos.smart_partial_mode)
+     {
+      //--- Marquer TP1 comme atteint pour sauter le partial close TP1
+      //--- BE activera a 0.5R (protection), position fermera a 1R (TP2)
+      pos.tp1_hit = true;  // Skip TP1 partial close
+      Print("A2Sniper PSM: SMART PARTIAL mode - volume=", DoubleToString(lot, 2),
+            " < min_lot*", DoubleToString(SMART_PARTIAL_MIN_LOT_FACTOR, 1),
+            " - BE@0.5R + FullClose@1R");
+     }
 
    pos.risk_distance = MathAbs(entry - sl);
    pos.risk_amount = 0;  // Serait calcule avec le tick value

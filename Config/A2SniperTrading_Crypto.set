@@ -1,6 +1,6 @@
-; A2Sniper Trading v6.1 - Configuration Crypto
+; A2Sniper Trading v6.3 - Configuration Crypto
+; v6.3: Smart Partial Close - si volume=min_lot => BE@0.5R + FullClose@1R
 ; Optimise pour: BTCUSD, ETHUSD (M15)
-; Option A: Qualite avant Quantite - 80% Win Rate Target
 
 ; === GENERAL ===
 EnableAutoTrading=true

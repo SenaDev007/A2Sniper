@@ -4,6 +4,7 @@
 //| FIX: Partial close on REMAINING volume, TP3 management,          |
 //|      Dynamic BE based on ATR, progressive trailing,              |
 //|      intelligent timeout, trailing independent of BE              |
+//| v6.3: Smart partial close - skip when volume=min_lot              |
 //+------------------------------------------------------------------+
 #ifndef A2SNIPER_TRADE_MANAGER_MQH
 #define A2SNIPER_TRADE_MANAGER_MQH
@@ -27,6 +28,7 @@ struct SPositionTracker
    double            original_tp3;            // TP3 original
    double            original_lot;            // Lot original
    double            current_lot;             // FIX: Lot actuel (apres partial closes)
+   bool              smart_partial_mode;      // v6.3: volume=min_lot, pas de split possible
    double            risk_distance;           // Distance SL en prix
    bool              be_activated;            // Break Even active
    bool              trailing_active;         // FIX: Trailing actif (independant de BE)
@@ -203,10 +205,24 @@ bool CTradeManager::RegisterPosition(const ulong ticket, const ENUM_SIGNAL_TYPE 
    pos.original_tp3 = tp3;
    pos.original_lot = lot;
    pos.current_lot = lot;           // FIX: Initialiser le lot actuel
+
+   //--- v6.3: Smart Partial Close - si volume trop petit pour splitter
+   double min_lot = SymbolInfoDouble(_Symbol, SYMBOL_VOLUME_MIN);
+   pos.smart_partial_mode = (lot < min_lot * SMART_PARTIAL_MIN_LOT_FACTOR);
+   if(pos.smart_partial_mode)
+     {
+      //--- Marquer TP1 comme atteint pour sauter le partial close TP1
+      //--- BE activera a 0.5R (protection), position fermera a 1R (TP2)
+      pos.tp1_hit = true;  // Skip TP1 partial close
+      Print("A2Sniper TM: SMART PARTIAL mode - volume=", DoubleToString(lot, 2),
+            " < min_lot*", DoubleToString(SMART_PARTIAL_MIN_LOT_FACTOR, 1),
+            " - BE@0.5R + FullClose@1R");
+     }
+
    pos.risk_distance = MathAbs(entry_price - sl);
    pos.be_activated = false;
    pos.trailing_active = false;     // FIX: Trailing independant
-   pos.tp1_hit = false;
+   pos.tp1_hit = pos.smart_partial_mode;  // v6.3: deja true si smart_partial
    pos.tp2_hit = false;
    pos.tp3_hit = false;             // FIX: Suivi TP3
    pos.score_at_entry = score;
@@ -530,10 +546,11 @@ double CTradeManager::CalculateTrailingSL(const SPositionTracker &pos) const
 //| Verifier Partial Close                                           |
 //| FIX: Partial close sur le VOLUME RESTANT, pas le lot original    |
 //|      TP3 gestion ajoutee                                         |
+//| v6.3: Smart Partial Close - si volume=min_lot, full close a 1R   |
 //+------------------------------------------------------------------+
 void CTradeManager::CheckPartialClose(SPositionTracker &pos)
   {
-   if(!m_enable_partial_close)
+   if(!m_enable_partial_close && !pos.smart_partial_mode)
       return;
 
    if(!PositionSelectByTicket(pos.ticket))
@@ -548,6 +565,31 @@ void CTradeManager::CheckPartialClose(SPositionTracker &pos)
    double current_volume = PositionGetDouble(POSITION_VOLUME);
    double min_lot = SymbolInfoDouble(_Symbol, SYMBOL_VOLUME_MIN);
    double lot_step = SymbolInfoDouble(_Symbol, SYMBOL_VOLUME_STEP);
+
+   //--- v6.3: SMART PARTIAL MODE - volume=min_lot, on ne peut pas splitter
+   //--- TP1 est deja marque comme atteint (skip partial close)
+   //--- Quand prix atteint TP2 (1R), on ferme TOUTE la position
+   if(pos.smart_partial_mode)
+     {
+      if(!pos.tp2_hit)
+        {
+         double tp2_price = pos.original_tp2;
+         bool tp2_reached = (pos.direction == SIGNAL_BUY) ?
+                             (current_price >= tp2_price) : (current_price <= tp2_price);
+
+         if(tp2_reached && current_volume >= min_lot && m_executor != NULL)
+           {
+            if(m_executor.ClosePartial(pos.ticket, current_volume))
+              {
+               pos.tp2_hit = true;
+               pos.tp3_hit = true;
+               Print("A2Sniper TM: SMART CLOSE a 1R - Fermeture totale - Ticket=", pos.ticket,
+                     " (volume min, pas de split possible)");
+              }
+           }
+        }
+      return;  // v6.3: Rien d'autre a verifier en smart_partial_mode
+     }
 
    //--- Verifier TP1 (fermer PARTIAL_TP1_PCT du volume RESTANT)
    if(!pos.tp1_hit)
