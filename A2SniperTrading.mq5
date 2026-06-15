@@ -5,10 +5,10 @@
 //| Full integration: Sniper + State Machine + Adaptive Risk         |
 //+------------------------------------------------------------------+
 #property copyright "Copyright 2024, YEHI OR Tech Solutions"
-#property version   "6.00"
-#property description "A2Sniper Trading v6 - Qualite avant Quantite"
-#property description "v6: Min 2 confirmations fortes, TP1 serre 0.5R, BE rapide 0.5R"
-#property description "Seuil composite 55, R:R minimum 1.2, confluence prime"
+#property version   "6.20"
+#property description "A2Sniper Trading v6.2 - Qualite avant Quantite"
+#property description "v6.2: Seuil composite 45 (55 trop restrictif), Min 2 confirmations"
+#property description "TP1 serre 0.5R, BE rapide 0.5R, R:R minimum 1.0"
 #property description "SMC/ICT + Strategic Reversal + Smart Money"
 #property description "80%+ Win Rate Target"
 
@@ -150,9 +150,9 @@ int               g_last_sniper_score = 0;
 int OnInit()
   {
    Print("========================================");
-   Print("  A2Sniper Trading v6.0 - Qualite avant Quantite");
-   Print("  v6: Min 2 confirmations, TP1=0.5R, BE=0.5R");
-   Print("  Composite>=55, R:R>=1.2, Confluence prime");
+   Print("  A2Sniper Trading v6.2 - Qualite avant Quantite");
+   Print("  v6.2: Min 2 confirmations, TP1=0.5R, BE=0.5R");
+   Print("  Composite>=45, R:R>=1.0, Confluence prime");
    Print("========================================");
 
    //--- 1. Initialiser le Risk Manager
@@ -442,9 +442,9 @@ bool CheckMultiTimeframeAlignment(ENUM_SIGNAL_TYPE direction)
 //|   - penalties (plus severes pour signaux faibles)                  |
 //| + Exiger MIN 2 confirmations fortes parmi OB/FVG/BOS/KillZone    |
 //| + TP1 serre a 0.5R (prendre profit vite = plus de wins)          |
-//| Si score_composite >= MIN_COMPOSITE_SCORE (55) => trade           |
+//| Si score_composite >= MIN_COMPOSITE_SCORE (45) => trade           |
 //+------------------------------------------------------------------+
-#define MIN_COMPOSITE_SCORE  55.0   // v6: Remonte a 55 pour qualite
+#define MIN_COMPOSITE_SCORE  45.0   // v6.2: Baisse a 45 (55 trop restrictif, trop peu de trades)
 #define MIN_CONFIRMATIONS    2      // v6: Minimum 2 confirmations fortes requises
 
 void TryExecuteSniperSignal(ENUM_SIGNAL_TYPE direction)
