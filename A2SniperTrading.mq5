@@ -5,10 +5,10 @@
 //| Full integration: Sniper + State Machine + Adaptive Risk         |
 //+------------------------------------------------------------------+
 #property copyright "Copyright 2024, YEHI OR Tech Solutions"
-#property version   "6.30"
-#property description "A2Sniper Trading v6.3 - Smart Partial Close"
-#property description "v6.3: Smart Partial Close - si volume=min_lot, BE@0.5R + FullClose@1R"
-#property description "v6.2: Seuil composite 45, Min 2 confirmations, R:R minimum 1.0"
+#property version   "6.40"
+#property description "A2Sniper Trading v6.4 - Small Account Protection"
+#property description "v6.4: SL cap 30 pips small account, BE@0.3R, trailing agressif"
+#property description "v6.3: Smart Partial Close - volume=min_lot => BE@0.5R + FullClose@1R"
 #property description "SMC/ICT + Strategic Reversal + Smart Money"
 #property description "80%+ Win Rate Target"
 
@@ -150,9 +150,9 @@ int               g_last_sniper_score = 0;
 int OnInit()
   {
    Print("========================================");
-   Print("  A2Sniper Trading v6.3 - Smart Partial Close");
+   Print("  A2Sniper Trading v6.4 - Small Account Protection");
+   Print("  v6.4: SL cap 30 pips (equity<$500), BE@0.3R, trailing agressif");
    Print("  v6.3: Smart Partial Close - volume=min_lot => BE@0.5R + FullClose@1R");
-   Print("  v6.2: Min 2 confirmations, composite=45, R:R minimum 1.0");
    Print("  Composite>=45, R:R>=1.0, Confluence prime");
    Print("========================================");
 
@@ -261,7 +261,9 @@ int OnInit()
    Print("A2Sniper Trading: Risk=", RiskPercent, "% | Sniper>=", MinSniperScore,
          " | R:R>=", MinRiskReward, " | AdaptiveRisk=", UseAdaptiveRisk ? "ON" : "OFF",
          " | StructuralSL=", EnableStructuralSL ? "ON" : "OFF",
-         " | OrderBook=", EnableOrderBook ? (g_order_book.IsAvailable() ? "ON" : "DEGRADE") : "OFF");
+         " | OrderBook=", EnableOrderBook ? (g_order_book.IsAvailable() ? "ON" : "DEGRADE") : "OFF",
+         " | SL Cap=", AccountInfoDouble(ACCOUNT_EQUITY) < SMALL_ACCOUNT_THRESHOLD ? 
+         IntegerToString(MAX_SL_PIPS_SMALL_ACCOUNT) + "pips" : "OFF");
 
    return INIT_SUCCEEDED;
   }
@@ -454,7 +456,7 @@ void TryExecuteSniperSignal(ENUM_SIGNAL_TYPE direction)
    double spread = SymbolInfoInteger(_Symbol, SYMBOL_SPREAD) * _Point;
    if(spread > MAX_SPREAD_POINTS * _Point)
      {
-      Print("A2Sniper v6.3: Spread trop eleve - signal ignore");
+      Print("A2Sniper v6.4: Spread trop eleve - signal ignore");
       return;
      }
 
@@ -467,7 +469,7 @@ void TryExecuteSniperSignal(ENUM_SIGNAL_TYPE direction)
    //--- v5: Si le sniper n'a meme pas calcule de score, on abandonne
    if(sniper.sniper_score <= 0)
      {
-      Print("A2Sniper v6.3: Score sniper=0 - aucun signal detecte");
+      Print("A2Sniper v6.4: Score sniper=0 - aucun signal detecte");
       return;
      }
 
@@ -500,7 +502,7 @@ void TryExecuteSniperSignal(ENUM_SIGNAL_TYPE direction)
    //--- v6: EXIGER MINIMUM 2 CONFIRMATIONS FORTES
    if(strong_confirmations < MIN_CONFIRMATIONS)
      {
-      Print("A2Sniper v6.3: Confirmations insuffisantes (", strong_confirmations, "/", MIN_CONFIRMATIONS,
+      Print("A2Sniper v6.4: Confirmations insuffisantes (", strong_confirmations, "/", MIN_CONFIRMATIONS,
             ") OB=", has_ob ? "Y" : "N", " FVG=", has_fvg ? "Y" : "N",
             " BOS=", has_bos ? "Y" : "N", " CHOCH=", has_choch ? "Y" : "N",
             " KZ=", is_killzone ? "Y" : "N");
@@ -552,11 +554,11 @@ void TryExecuteSniperSignal(ENUM_SIGNAL_TYPE direction)
    if(ai_score.total_score <= 0)
      {
       composite -= 5.0;   // Penalite pour AI negatif
-      Print("A2Sniper v6.3: Score AI negatif (", DoubleToString(ai_score.total_score, 1), ") - penalite -5");
+      Print("A2Sniper v6.4: Score AI negatif (", DoubleToString(ai_score.total_score, 1), ") - penalite -5");
      }
 
    //--- 7. DECISION: Le score composite decide
-   Print("A2Sniper v6.3: Composite=", DoubleToString(composite, 1), "/", MIN_COMPOSITE_SCORE,
+   Print("A2Sniper v6.4: Composite=", DoubleToString(composite, 1), "/", MIN_COMPOSITE_SCORE,
          " | Sniper=", sniper.sniper_score, " AI=", DoubleToString(ai_score.total_score, 1),
          " SRE=", sre_signal.total_score,
          " | Conf=", strong_confirmations, "/", MIN_CONFIRMATIONS,
@@ -566,14 +568,14 @@ void TryExecuteSniperSignal(ENUM_SIGNAL_TYPE direction)
 
    if(composite < MIN_COMPOSITE_SCORE)
      {
-      Print("A2Sniper v6.3: Score composite insuffisant (", DoubleToString(composite, 1), " < ", MIN_COMPOSITE_SCORE, ")");
+      Print("A2Sniper v6.4: Score composite insuffisant (", DoubleToString(composite, 1), " < ", MIN_COMPOSITE_SCORE, ")");
       return;
      }
 
    //--- 8. Verifier R:R minimum (avec tolerance flottante)
    if(sniper.risk_reward < MinRiskReward - 0.01)
      {
-      Print("A2Sniper v6.3: R:R insuffisant (", DoubleToString(sniper.risk_reward, 1), " < ", MinRiskReward, ")");
+      Print("A2Sniper v6.4: R:R insuffisant (", DoubleToString(sniper.risk_reward, 1), " < ", MinRiskReward, ")");
       return;
      }
 
@@ -587,20 +589,20 @@ void TryExecuteSniperSignal(ENUM_SIGNAL_TYPE direction)
 
       if(RequireBookConfirmation && !book_val.liquidity_ok)
         {
-         Print("A2Sniper v6.3: OrderBook REJET - Liquidite insuffisante (", book_val.rejection_reason, ")");
+         Print("A2Sniper v6.4: OrderBook REJET - Liquidite insuffisante (", book_val.rejection_reason, ")");
          return;
         }
 
       if(RequireBookConfirmation && book_val.confidence_score < 30.0)
         {
-         Print("A2Sniper v6.3: OrderBook REJET - Confiance trop faible (", DoubleToString(book_val.confidence_score, 1), "/100)");
+         Print("A2Sniper v6.4: OrderBook REJET - Confiance trop faible (", DoubleToString(book_val.confidence_score, 1), "/100)");
          return;
         }
 
       if(UseBookSLAdjust && book_val.wall_sl_adjust > 0 && book_val.wall_sl_adjust != sniper.stop_loss)
         {
          book_sl = book_val.wall_sl_adjust;
-         Print("A2Sniper v6.3: OrderBook SL ajuste - SL original=", sniper.stop_loss,
+         Print("A2Sniper v6.4: OrderBook SL ajuste - SL original=", sniper.stop_loss,
                " . SL carnet=", book_sl);
         }
      }
@@ -614,7 +616,7 @@ void TryExecuteSniperSignal(ENUM_SIGNAL_TYPE direction)
 
    if(!can_trade)
      {
-      Print("A2Sniper v6.3: Risk Manager bloque le trade");
+      Print("A2Sniper v6.4: Risk Manager bloque le trade");
       return;
      }
 
@@ -637,6 +639,19 @@ void TryExecuteSniperSignal(ENUM_SIGNAL_TYPE direction)
          sl_distance_pips = MIN_SL_DISTANCE_PIPS;
      }
 
+   //--- v6.4: Small Account Protection - SL max cap
+   //--- Sur les petits comptes (<500 USD), avec lot min 0.01, un SL de 50 pips
+   //--- represente $5.00 de risque = 2.5% du compte au lieu de 1% cible.
+   //--- On skip les trades avec SL trop large pour eviter les pertes excessives.
+   double account_equity = AccountInfoDouble(ACCOUNT_EQUITY);
+   if(account_equity < SMALL_ACCOUNT_THRESHOLD && sl_distance_pips > MAX_SL_PIPS_SMALL_ACCOUNT)
+     {
+      Print("A2Sniper v6.4: SL trop large pour petit compte (", DoubleToString(sl_distance_pips, 0),
+            " pips > ", MAX_SL_PIPS_SMALL_ACCOUNT, " max) - Trade skippe (equity=",
+            DoubleToString(account_equity, 0), " USD)");
+      return;
+     }
+
    double lot;
    if(UseAdaptiveRisk)
       lot = g_adaptive_risk.CalculateAdaptiveLotSize(sl_distance_pips);
@@ -647,7 +662,7 @@ void TryExecuteSniperSignal(ENUM_SIGNAL_TYPE direction)
    double min_lot = SymbolInfoDouble(_Symbol, SYMBOL_VOLUME_MIN);
    if(lot < min_lot && lot > 0)
      {
-      Print("A2Sniper v6.3: Lot calcule (", lot, ") < min_lot (", min_lot, ") - ajustement au minimum");
+      Print("A2Sniper v6.4: Lot calcule (", lot, ") < min_lot (", min_lot, ") - ajustement au minimum");
       lot = min_lot;
      }
 
@@ -655,7 +670,7 @@ void TryExecuteSniperSignal(ENUM_SIGNAL_TYPE direction)
    if(lot <= 0)
      {
       lot = min_lot;
-      Print("A2Sniper v6.3: Lot=0 detecte - utilisation du lot minimum (", lot, ")");
+      Print("A2Sniper v6.4: Lot=0 detecte - utilisation du lot minimum (", lot, ")");
      }
 
    //--- 14. Verifier la marge
@@ -667,7 +682,7 @@ void TryExecuteSniperSignal(ENUM_SIGNAL_TYPE direction)
 
    if(!has_margin)
      {
-      Print("A2Sniper v6.3: Marge insuffisante pour lot=", lot);
+      Print("A2Sniper v6.4: Marge insuffisante pour lot=", lot);
       return;
      }
 
@@ -712,7 +727,7 @@ void TryExecuteSniperSignal(ENUM_SIGNAL_TYPE direction)
          g_dashboard.DrawTradeLevels(sniper.entry_price, book_sl,
                                       sniper.tp1, sniper.tp2, sniper.tp3, direction);
 
-      Print("A2Sniper v6.3: Trade execute - Ticket=", ticket, " Lot=", lot,
+      Print("A2Sniper v6.4: Trade execute - Ticket=", ticket, " Lot=", lot,
             " Composite=", DoubleToString(composite, 1),
             " Sniper=", sniper.sniper_score, " AI=", DoubleToString(ai_score.total_score, 1));
 
@@ -726,7 +741,7 @@ void TryExecuteSniperSignal(ENUM_SIGNAL_TYPE direction)
      }
    else
      {
-      Print("A2Sniper v6.3: ECHEC execution - ticket=", ticket, " lot=", lot);
+      Print("A2Sniper v6.4: ECHEC execution - ticket=", ticket, " lot=", lot);
      }
   }
 

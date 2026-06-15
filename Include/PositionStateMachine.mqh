@@ -325,17 +325,19 @@ double CPositionStateMachine::CalculateCurrentR(const SManagedPosition &pos) con
   }
 
 //+------------------------------------------------------------------+
-//| Multiplicateur de trailing progressif                            |
-//| 0.5R = 2.0x ATR, 1R = 1.5x, 2R = 1.0x, 3R+ = 0.7x             |
+//| Multiplicateur de trailing progressif - v6.4: Plus agressif      |
+//| 0.3R = 1.5x ATR, 0.5R = 1.2x, 1R = 0.9x, 2R = 0.6x, 3R+ = 0.4x|
+//| Plus le trade avance dans notre sens, plus on serre le trailing   |
 //+------------------------------------------------------------------+
 double CPositionStateMachine::CalculateProgressiveTrailMult(double current_r) const
   {
-   if(current_r >= 3.0)  return 0.7;
-   if(current_r >= 2.5)  return 0.85;
-   if(current_r >= 2.0)  return 1.0;
-   if(current_r >= 1.5)  return 1.2;
-   if(current_r >= 1.0)  return 1.5;
-   return 2.0;  // Large au debut
+   if(current_r >= 3.0)  return 0.4;   // v6.4: Ultra-serre a 3R (0.4x au lieu de 0.7x)
+   if(current_r >= 2.5)  return 0.5;   // v6.4: Tres serre a 2.5R (0.5x au lieu de 0.85x)
+   if(current_r >= 2.0)  return 0.6;   // v6.4: Serre a 2R (0.6x au lieu de 1.0x)
+   if(current_r >= 1.5)  return 0.8;   // v6.4: Serre a 1.5R (0.8x au lieu de 1.2x)
+   if(current_r >= 1.0)  return 0.9;   // v6.4: Modere a 1R (0.9x au lieu de 1.5x)
+   if(current_r >= 0.5)  return 1.2;   // v6.4: Standard a 0.5R (1.2x au lieu de 2.0x)
+   return 1.5;  // Large au debut (1.5x au lieu de 2.0x)
   }
 
 //+------------------------------------------------------------------+

@@ -351,10 +351,10 @@ struct SStatistics
 #define EXTREME_VOL_MULT        3.5
 
 //--- Break Even dynamique (base ATR)
-#define BE_ACTIVATION_R         0.5      // v6: Activer BE a 0.5R (plus rapide)
-//--- v6.3: Quand volume=min_lot, BE reste a 0.5R (protection), TP a 1R (objectif)
-#define BE_ATR_OFFSET_MULT      0.2      // FIX: Offset BE = 0.2 * ATR (au lieu de 2 pips fixe)
-#define BE_MIN_OFFSET_PIPS      1.0      // Offset minimum en pips
+#define BE_ACTIVATION_R         0.3      // v6.4: Activer BE a 0.3R (plus rapide = plus de protection)
+//--- v6.4: BE plus tot = plus de trades proteges avant le SL plein
+#define BE_ATR_OFFSET_MULT      0.1      // v6.4: Offset BE reduit (0.1 ATR au lieu de 0.2) = BE plus serre
+#define BE_MIN_OFFSET_PIPS      0.5      // v6.4: Offset minimum reduit a 0.5 pip (au lieu de 1.0)
 
 //--- Partial Close (pourcentages du VOLUME RESTANT, pas du lot original)
 #define PARTIAL_TP1_PCT         60.0     // v6: Fermer 60% a TP1 (plus agressif = lock profit)
@@ -371,14 +371,21 @@ struct SStatistics
 #define TP2_R_MULT              1.0      // v6: TP2 a 1R
 #define TP3_R_MULT              1.5      // v6: TP3 a 1.5R
 
+//--- v6.4: Small Account Protection
+//--- Sur les petits comptes (<500 USD), avec lot min 0.01, un SL de 50 pips
+//--- represente $5.00 de risque = 2.5% du compte au lieu de 1% cible.
+//--- On skip les trades avec SL trop large pour eviter les pertes excessives.
+#define MAX_SL_PIPS_SMALL_ACCOUNT  30    // v6.4: SL max en pips pour comptes < 500 USD
+#define SMALL_ACCOUNT_THRESHOLD    500   // v6.4: Seuil petit compte en USD
+
 //--- v6.3: TP alternatifs quand volume = min_lot (pas de partial close possible)
 //--- On vise 1R direct au lieu de 0.5R partiel -> R:R effectif 1:1 au lieu de 0.5:1
 #define SMART_TP_R_MULT         1.0      // v6.3: TP unique a 1R quand volume=min_lot (pas de split)
 
 //--- Trailing Stop
-#define TRAILING_ATR_MULT       1.5      // Trailing ATR multiplicateur
-#define TRAILING_STEP_PIPS      5        // Step trailing minimum en pips
-#define TRAILING_ACTIVATION_R   0.5      // FIX: Trailing actif a 0.5R (pas besoin d'attendre BE)
+#define TRAILING_ATR_MULT       1.2      // v6.4: Trailing ATR reduit (1.2 au lieu de 1.5 = plus reactif)
+#define TRAILING_STEP_PIPS      3        // v6.4: Step trailing reduit a 3 pips (au lieu de 5 = plus precis)
+#define TRAILING_ACTIVATION_R   0.3      // v6.4: Trailing actif a 0.3R (des le BE, au lieu de 0.5R)
 
 //--- Broker limits
 #define MIN_SL_DISTANCE_PIPS    10       // Distance SL minimum en pips
