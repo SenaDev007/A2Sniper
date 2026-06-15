@@ -627,6 +627,8 @@ void TryExecuteSniperSignal(ENUM_SIGNAL_TYPE direction)
    if(HasCorrelatedPosition(direction)) return;
 
    //--- 13. Calculer le lot adaptatif
+   //--- NOTE: sl_distance_pips est en POINTS (pas pips) car / _Point
+   //--- Pour EURUSD 5-digit: 1 pip = 10 points
    double sl_distance_pips = MathAbs(sniper.entry_price - book_sl) / _Point;
 
    //--- v5: Securiser le SL - si SL trop proche, elargir
@@ -639,14 +641,16 @@ void TryExecuteSniperSignal(ENUM_SIGNAL_TYPE direction)
          sl_distance_pips = MIN_SL_DISTANCE_PIPS;
      }
 
-   //--- v6.4: Small Account Protection - SL max cap
-   //--- Sur les petits comptes (<500 USD), avec lot min 0.01, un SL de 50 pips
-   //--- represente $5.00 de risque = 2.5% du compte au lieu de 1% cible.
-   //--- On skip les trades avec SL trop large pour eviter les pertes excessives.
+   //--- v6.4c: Small Account Protection - SL max cap
+   //--- FIX: sl_distance_pips est en POINTS, pas en PIPS!
+   //--- Pour comparer en vrais pips, on convertit avec _Point / 0.0001
+   //--- 1 pip = 10 points sur EURUSD 5-digit, 1 pip = 1 point sur USDJPY 3-digit
+   //--- MAX_SL_PIPS_SMALL_ACCOUNT est en VRAIS PIPS (50 = 50 pips)
    double account_equity = AccountInfoDouble(ACCOUNT_EQUITY);
-   if(account_equity < SMALL_ACCOUNT_THRESHOLD && sl_distance_pips > MAX_SL_PIPS_SMALL_ACCOUNT)
+   double sl_real_pips = MathAbs(sniper.entry_price - book_sl) / 0.0001;  // Vrais pips (universel)
+   if(account_equity < SMALL_ACCOUNT_THRESHOLD && sl_real_pips > MAX_SL_PIPS_SMALL_ACCOUNT)
      {
-      Print("A2Sniper v6.4: SL trop large pour petit compte (", DoubleToString(sl_distance_pips, 0),
+      Print("A2Sniper v6.4c: SL trop large pour petit compte (", DoubleToString(sl_real_pips, 0),
             " pips > ", MAX_SL_PIPS_SMALL_ACCOUNT, " max) - Trade skippe (equity=",
             DoubleToString(account_equity, 0), " USD)");
       return;
