@@ -375,7 +375,11 @@ struct SStatistics
 //--- Sur les petits comptes (<500 USD), avec lot min 0.01, un SL de 50 pips
 //--- represente $5.00 de risque = 2.5% du compte au lieu de 1% cible.
 //--- On skip les trades avec SL trop large pour eviter les pertes excessives.
-#define MAX_SL_PIPS_SMALL_ACCOUNT  30    // v6.4: SL max en pips pour comptes < 500 USD
+//--- v6.4b: Cap augmente de 30 a 50 pips car la plupart des SL structurels
+//--- sur EURUSD M15 sont entre 30-80 pips. 30 etait trop restrictif (7 trades seulement).
+//--- 50 pips filtre les SL > 100 pips (72% des signaux rejects) tout en gardant
+//--- les setups raisonnables. Combine avec BE@0.3R et trailing agressif.
+#define MAX_SL_PIPS_SMALL_ACCOUNT  50    // v6.4b: SL max en pips pour comptes < 500 USD (30 trop restrictif)
 #define SMALL_ACCOUNT_THRESHOLD    500   // v6.4: Seuil petit compte en USD
 
 //--- v6.3: TP alternatifs quand volume = min_lot (pas de partial close possible)
