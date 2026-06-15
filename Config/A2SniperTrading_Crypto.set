@@ -1,37 +1,51 @@
-; Configuration optimisée pour les Cryptomonnaies
-; A2Sniper Trading - Stratégie Heikin-Ashi
-; Recommandé pour: BTCUSD, ETHUSD, ADAUSD, etc.
+; A2Sniper Trading v6.1 - Configuration Crypto
+; Optimise pour: BTCUSD, ETHUSD (M15)
+; Option A: Qualite avant Quantite - 80% Win Rate Target
 
-; === INDICATEURS ===
-EMA_Period=18
-Use_VWAP=true
-Volume_Period=15
-ATR_Period=12
+; === GENERAL ===
+EnableAutoTrading=true
+MagicNumber=20240720
+GMT_Offset=0
 
-; === DETECTION PATTERNS ===
-Min_Pullback_Candles=3
-Doji_Body_Ratio=0.35
-Volume_Multiplier=1.30
+; === ADAPTIVE RISK MANAGEMENT ===
+RiskPercent=1.50
+MaxDailyDD=6.00
+MaxWeeklyDD=12.00
+MaxMonthlyDD=25.00
+MaxPositions=3
+MaxDailyTrades=5
+UseAdaptiveRisk=true
 
-; === RISK MANAGEMENT ===
-Risk_Percent=1.50
-SL_Method=2
-SL_Pips=25.00
-ATR_Multiplier=2.20
-RR_Ratio=1.80
-Use_Trailing=true
+; === TRADE SNIPER (v6 - NE PAS MODIFIER MinRiskReward) ===
+MinSniperScore=70
+MinRiskReward=1.00
+RequireKillzone=false
+RequireStructure=false
+RequireInstitutional=false
 
-; === FILTRES ===
-Trading_Hours=00:00-23:59
-Monday_Trading=true
-Friday_Trading=true
-Max_Spread=5.00
+; === SIGNAL ===
+MinSignalScore=55.00
+MinSREScore=60
+RequireSMEConfirmation=false
+RequireSessionFilter=false
+RequireNewsFilter=false
 
-; === LIMITES ===
-Max_Positions=4
-Max_Daily_Loss=6.00
-Max_Drawdown=12.00
+; === POSITION STATE MACHINE ===
+EnableBreakEven=true
+EnableTrailingStop=true
+EnablePartialClose=true
+EnableStructuralSL=true
+TrailingMode=0
 
-; === NOTIFICATIONS ===
-Send_Alerts=true
-Debug_Mode=false
+; === TIMEFRAME ===
+HTF_Timeframe=4
+MTF_Timeframe=1
+LTF_Timeframe=15
+
+; === ORDER BOOK ===
+EnableOrderBook=true
+RequireBookConfirmation=false
+UseBookSLAdjust=true
+
+; === DASHBOARD ===
+EnableDashboard=true
